@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhiteOn | 매니저 플랫폼</title>
+    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #1e293b; --accent: #2563eb; --bg: #f8fafc; --card: #ffffff;
+            --text: #0f172a; --text-light: #64748b; --border: #e2e8f0;
+            --success: #10b981; --danger: #ef4444; --warning: #f59e0b;
+        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { 
+            font-family: 'Pretendard', sans-serif; background-color: #1e293b; 
+            margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh;
+        }
+
+        /* 모바일 뷰 컨테이너 */
+        .mobile-container {
+            width: 100%; max-width: 480px; height: 100vh; max-height: 900px;
+            background: var(--bg); position: relative; overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+            display: flex; flex-direction: column;
+        }
+        @media (max-height: 900px) { .mobile-container { height: 100vh; max-height: none; border-radius: 0; } }
+        @media (min-width: 481px) { .mobile-container { border-radius: 30px; border: 8px solid #334155; } }
+
+        .header { background: #1e293b; padding: 20px; text-align: center; color: white; }
+        .header img { height: 30px; filter: brightness(0) invert(1); }
+
+        .content { flex: 1; overflow-y: auto; padding: 20px; padding-bottom: 100px; }
+        .page { display: none; }
+        .page.active { display: block; }
+
+        .card { background: white; border-radius: 16px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+        h2 { margin-top: 0; font-size: 1.1rem; color: var(--text); }
+
+        .input-group { margin-bottom: 15px; }
+        .input-group label { display: block; font-size: 0.8rem; color: var(--text-light); margin-bottom: 5px; font-weight: 600; }
+        .input-group input, .input-group textarea, .input-group select {
+            width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 12px; font-size: 0.9rem; outline: none;
+        }
+
+        .btn { width: 100%; padding: 15px; border-radius: 12px; border: none; font-weight: 700; cursor: pointer; font-size: 0.95rem; }
+        .btn-primary { background: var(--accent); color: white; }
+        .btn-secondary { background: #e2e8f0; color: var(--text); margin-top: 10px; }
+
+        .nav-bar {
+            position: absolute; bottom: 0; width: 100%; background: white; 
+            display: flex; justify-content: space-around; padding: 15px 0; border-top: 1px solid var(--border);
+        }
+        .nav-item { color: #94a3b8; font-size: 1.3rem; cursor: pointer; text-align: center; }
+        .nav-item.active { color: var(--accent); }
+        .nav-item span { display: block; font-size: 0.65rem; margin-top: 4px; font-weight: 700; }
+
+        .badge { padding: 4px 10px; border-radius: 6px; font-size: 0.7rem; font-weight: 800; }
+        .badge-pending { background: #fee2e2; color: #ef4444; }
+        .badge-progress { background: #fef9c3; color: #ca8a04; }
+
+        /* 수리 리포트 스타일 */
+        .report-box { background: #f1f5f9; padding: 15px; border-radius: 12px; margin-top: 10px; }
+        .report-label { font-weight: 800; font-size: 0.75rem; color: var(--accent); margin-bottom: 5px; }
+        .report-value { font-size: 0.85rem; line-height: 1.5; color: var(--text); }
+    </style>
+</head>
+<body>
+
+    <div class="mobile-container">
+        <div class="header">
+            <img src="/static/logo.png" alt="WhiteOn">
+            <div style="font-size: 0.7rem; margin-top: 5px; opacity: 0.8;">지사 매니저용 포털</div>
+        </div>
+
+        <div class="content">
+            <!-- 1. 로그인 -->
+            <div id="page-login" class="page active">
+                <div style="text-align: center; margin: 40px 0;">
+                    <i class="fas fa-user-shield" style="font-size: 3rem; color: var(--accent);"></i>
+                    <h2 style="margin-top:20px; font-size:1.5rem;">매니저 로그인</h2>
+                </div>
+                <div class="card">
+                    <div class="input-group">
+                        <label>지사 전화번호</label>
+                        <input type="text" id="login-phone" placeholder="'-' 제외 입력">
+                    </div>
+                    <button class="btn btn-primary" onclick="app.login()">매니저 인증</button>
+                    <button class="btn btn-secondary" onclick="app.showPage('signup')">신규 지사 등록신청</button>
+                </div>
+            </div>
+
+            <!-- 2. 지사 가입 신청 -->
+            <div id="page-signup" class="page">
+                <h2>🏢 신규 지사 가입 신청</h2>
+                <div class="card">
+                    <div class="input-group"><label>지사명</label><input type="text" id="reg-name" placeholder="예: 화이트온 양주지사"></div>
+                    <div class="input-group"><label>지역 코드</label><input type="text" id="reg-region" placeholder="예: GYEONGGI"></div>
+                    <div class="input-group"><label>매니저 연락처</label><input type="text" id="reg-phone" placeholder="로그인용 번호"></div>
+                    <button class="btn btn-primary" onclick="app.register()">가입 신청하기</button>
+                    <button class="btn btn-secondary" onclick="app.showPage('login')">이전으로</button>
+                </div>
+            </div>
+
+            <!-- 3. 승인 대기 -->
+            <div id="page-waiting" class="page">
+                <div style="text-align: center; margin-top: 60px;">
+                    <i class="fas fa-user-clock" style="font-size: 4rem; color: var(--warning);"></i>
+                    <h2 style="margin-top:20px;">본사 승인 대기 중</h2>
+                    <p style="color: var(--text-light); font-size:0.9rem;">지사 가입 승인 후 업무를 시작할 수 있습니다.</p>
+                    <button class="btn btn-secondary" onclick="app.logout()">로그인 화면으로</button>
+                </div>
+            </div>
+
+            <!-- 4. 할당된 작업 (메인) -->
+            <div id="page-assigned" class="page">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                    <h2 style="margin:0;">할당된 수리</h2>
+                    <button onclick="app.loadData()" style="background:none; border:none; color:var(--accent);"><i class="fas fa-sync-alt"></i></button>
+                </div>
+                <div id="assigned-list"></div>
+            </div>
+
+            <!-- 5. 진행중인 작업 -->
+            <div id="page-progress" class="page">
+                <h2>🛠️ 수리 진행 현황</h2>
+                <div id="progress-list"></div>
+            </div>
+
+            <!-- 6. 완료 내역 (History) -->
+            <div id="page-history" class="page">
+                <h2>📜 과거 수리 완료 내역</h2>
+                <div id="history-list"></div>
+            </div>
+
+            <!-- 7. 수리 리포트 작성 -->
+            <div id="page-report" class="page">
+                <h2 id="report-title">수리 리포트 작성</h2>
+                <div class="card">
+                    <div class="input-group"><label>문제점 분석</label><textarea id="rep-problem" rows="3" placeholder="발견된 문제점을 적어주세요"></textarea></div>
+                    <div class="input-group"><label>상세 분석내용</label><textarea id="rep-analysis" rows="3" placeholder="원인 분석 내용을 적어주세요"></textarea></div>
+                    <div class="input-group"><label>조치 및 해결</label><textarea id="rep-solution" rows="3" placeholder="어떻게 해결했는지 적어주세요"></textarea></div>
+                    <div class="input-group"><label>수리 완료 사진</label><input type="file" id="rep-file" accept="image/*" capture="environment"></div>
+                    <div class="input-group"><label>최종 청구 금액 (원)</label><input type="number" id="rep-amount" placeholder="예: 50000"></div>
+                    <button class="btn btn-primary" onclick="app.submitReport()">결제 요청 및 완료</button>
+                    <button class="btn btn-secondary" onclick="app.showPage('progress')">취소</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 하단 내비게이션 -->
+        <div id="manager-nav" class="nav-bar" style="display: none;">
+            <div class="nav-item active" onclick="app.switchTab('assigned')"><i class="fas fa-tasks"></i><span>할당됨</span></div>
+            <div class="nav-item" onclick="app.switchTab('progress')"><i class="fas fa-wrench"></i><span>진행중</span></div>
+            <div class="nav-item" onclick="app.switchTab('history')"><i class="fas fa-check-double"></i><span>완료내역</span></div>
+            <div class="nav-item" onclick="app.logout()"><i class="fas fa-sign-out-alt"></i><span>로그아웃</span></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = "/api/v1";
+        const app = {
+            branch: null,
+            currentRequestId: null,
+
+            showPage(id) {
+                document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+                document.getElementById('page-' + id).classList.add('active');
+                document.getElementById('manager-nav').style.display = (['login', 'signup', 'waiting'].includes(id)) ? 'none' : 'flex';
+            },
+
+            switchTab(tabId) {
+                document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+                event.currentTarget.classList.add('active');
+                this.showPage(tabId);
+                this.loadData();
+            },
+
+            async login() {
+                const phone = document.getElementById('login-phone').value;
+                const res = await fetch(`${API_BASE}/branches/`);
+                const branches = await res.json();
+                const found = branches.find(b => b.manager_phone === phone);
+                if(found) {
+                    this.branch = found;
+                    if(!found.is_approved) return this.showPage('waiting');
+                    this.showPage('assigned');
+                    this.loadData();
+                } else { alert('등록되지 않은 지사입니다.'); }
+            },
+
+            async register() {
+                const name = document.getElementById('reg-name').value;
+                const region = document.getElementById('reg-region').value;
+                const phone = document.getElementById('reg-phone').value;
+                if(!name || !region || !phone) return alert('모든 항목을 입력하세요.');
+                await fetch(`${API_BASE}/branches/`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ name, region_code: region, manager_phone: phone, commission_rate: 10 })
+                });
+                alert('지사 가입 신청 완료! 본사 승인 대기');
+                this.showPage('login');
+            },
+
+            async loadData() {
+                const res = await fetch(`${API_BASE}/requests/?assigned_branch_id=${this.branch.id}`);
+                const data = await res.json();
+                
+                // 할당됨 (PENDING)
+                const assigned = data.filter(r => r.status === 'PENDING').reverse();
+                document.getElementById('assigned-list').innerHTML = assigned.map(r => `
+                    <div class="card">
+                        <div style="font-weight:700; font-size:1.1rem; color:var(--accent);">${r.restaurant_name || '식당'}</div>
+                        <div style="margin:10px 0; font-size:0.9rem;">${r.category}</div>
+                        <button class="btn btn-primary" onclick="app.startRepair('${r.id}')">수리 시작하기</button>
+                    </div>
+                `).join('') || '<p style="text-align:center; color:#94a3b8;">할당된 작업이 없습니다.</p>';
+
+                // 진행중 (IN_PROGRESS, PAYMENT_REQUESTED)
+                const progress = data.filter(r => r.status === 'IN_PROGRESS' || r.status === 'PAYMENT_REQUESTED').reverse();
+                document.getElementById('progress-list').innerHTML = progress.map(r => `
+                    <div class="card">
+                        <div style="display:flex; justify-content:space-between;">
+                            <span style="font-weight:700;">${r.restaurant_name || '식당'}</span>
+                            <span class="badge ${r.status==='IN_PROGRESS'?'badge-progress':'badge-pending'}">${r.status==='IN_PROGRESS'?'수리중':'결제대기'}</span>
+                        </div>
+                        <div style="margin:10px 0; font-size:0.85rem; color:var(--text-light);">${r.category}</div>
+                        ${r.status === 'IN_PROGRESS' ? `<button class="btn btn-primary" onclick="app.openReport('${r.id}')">리포트 작성 / 완료</button>` : `<div style="text-align:center; color:var(--success); font-weight:700; font-size:0.8rem;">사장님 결제를 기다리는 중입니다.</div>`}
+                    </div>
+                `).join('') || '<p style="text-align:center; color:#94a3b8;">진행 중인 작업이 없습니다.</p>';
+
+                // 완료내역 (COMPLETED)
+                const history = data.filter(r => r.status === 'COMPLETED').reverse();
+                document.getElementById('history-list').innerHTML = history.map(r => {
+                    const m = r.metadata || {};
+                    return `
+                    <div class="card">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                            <span style="font-weight:800;">${r.restaurant_name}</span>
+                            <span style="font-size:0.75rem; color:var(--text-light);">${new Date(r.completed_at).toLocaleDateString()}</span>
+                        </div>
+                        <div class="report-box">
+                            <div class="report-label">문제점</div><div class="report-value">${m.problem || '-'}</div>
+                            <div class="report-label">해결</div><div class="report-value">${m.solution || '-'}</div>
+                            <div class="report-label">금액</div><div class="report-value" style="color:var(--accent); font-weight:700;">₩${(m.requested_amount||0).toLocaleString()}</div>
+                        </div>
+                    </div>`;
+                }).join('') || '<p style="text-align:center; color:#94a3b8;">완료 내역이 없습니다.</p>';
+            },
+
+            async startRepair(id) {
+                await fetch(`${API_BASE}/requests/${id}`, {
+                    method: 'PATCH',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ status: 'IN_PROGRESS', assigned_at: new Date().toISOString() })
+                });
+                this.loadData();
+                this.showPage('progress');
+            },
+
+            openReport(id) {
+                this.currentRequestId = id;
+                this.showPage('report');
+            },
+
+            async submitReport() {
+                const problem = document.getElementById('rep-problem').value;
+                const analysis = document.getElementById('rep-analysis').value;
+                const solution = document.getElementById('rep-solution').value;
+                const amount = document.getElementById('rep-amount').value;
+                const file = document.getElementById('rep-file').files[0];
+
+                if(!problem || !analysis || !solution || !amount) return alert('모든 리포트 항목과 금액을 기입해주세요.');
+
+                const metadata = { problem, analysis, solution, requested_amount: parseInt(amount) };
+                
+                await fetch(`${API_BASE}/requests/${this.currentRequestId}`, {
+                    method: 'PATCH',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ status: 'PAYMENT_REQUESTED', metadata_json: metadata })
+                });
+
+                if(file) {
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    await fetch(`${API_BASE}/requests/${this.currentRequestId}/media`, { method: 'POST', body: formData });
+                }
+
+                alert('수리 리포트 전송 및 결제 요청이 완료되었습니다.');
+                this.loadData();
+                this.showPage('progress');
+            },
+
+            logout() { this.branch = null; this.showPage('login'); }
+        };
+    </script>
+</body>
+</html>

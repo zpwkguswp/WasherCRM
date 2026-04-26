@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhiteOn HQ | 통합 관제 시스템</title>
+    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #1e293b; --accent: #2563eb; --bg: #f8fafc; --card: #ffffff;
+            --text: #0f172a; --text-light: #64748b; --border: #e2e8f0;
+            --success: #10b981; --danger: #ef4444; --warning: #f59e0b;
+        }
+        * { box-sizing: border-box; }
+        body { font-family: 'Pretendard', sans-serif; background-color: var(--bg); color: var(--text); margin: 0; display: flex; height: 100vh; }
+
+        /* 사이드바 */
+        .sidebar { width: 260px; background: var(--primary); color: white; display: flex; flex-direction: column; }
+        .logo-section { padding: 30px 20px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .logo-section img { width: 140px; filter: brightness(0) invert(1); }
+        
+        .nav-menu { flex: 1; padding: 20px 10px; }
+        .nav-item { 
+            padding: 15px 20px; border-radius: 12px; cursor: pointer; margin-bottom: 8px;
+            display: flex; align-items: center; gap: 15px; color: #94a3b8; transition: 0.2s; font-weight: 600;
+        }
+        .nav-item:hover { background: rgba(255,255,255,0.05); color: white; }
+        .nav-item.active { background: var(--accent); color: white; }
+
+        /* 메인 영역 */
+        .main-wrapper { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+        .top-bar { height: 70px; background: white; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: flex-end; padding: 0 40px; }
+        
+        .content-area { flex: 1; padding: 40px; overflow-y: auto; }
+        .page { display: none; }
+        .page.active { display: block; }
+
+        .card { background: white; border-radius: 16px; padding: 25px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        h1 { margin: 0 0 30px 0; font-size: 1.8rem; }
+        h3 { margin-top: 0; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+
+        /* 필터 섹션 */
+        .filter-section { display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; align-items: flex-end; background: #f1f5f9; padding: 15px; border-radius: 12px; }
+        .filter-group { display: flex; flex-direction: column; gap: 5px; }
+        .filter-group label { font-size: 0.75rem; color: var(--text-light); font-weight: 700; }
+        select, input { padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.9rem; outline: none; }
+
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 12px; border-bottom: 2px solid var(--border); color: var(--text-light); font-size: 0.85rem; }
+        td { padding: 15px 12px; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+
+        .badge { padding: 5px 12px; border-radius: 8px; font-size: 0.75rem; font-weight: 800; }
+        .badge-pending { background: #fee2e2; color: #ef4444; }
+        .badge-progress { background: #fef9c3; color: #ca8a04; }
+        .badge-wait { background: #e0f2fe; color: #0369a1; }
+        .badge-completed { background: #dcfce7; color: #16a34a; }
+
+        .btn { padding: 8px 16px; border-radius: 8px; border: none; font-weight: 700; cursor: pointer; font-size: 0.85rem; transition: 0.2s; }
+        .btn-primary { background: var(--accent); color: white; }
+        .btn-success { background: var(--success); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
+
+        .photo-thumb { width: 45px; height: 45px; border-radius: 6px; object-fit: cover; cursor: pointer; border: 1px solid #eee; }
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 30px; }
+        .stat-card { background: white; padding: 20px; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+        .stat-label { font-size: 0.8rem; color: var(--text-light); margin-bottom: 10px; font-weight: 600; }
+        .stat-value { font-size: 1.5rem; font-weight: 800; color: var(--accent); }
+
+        /* 로그 스타일 */
+        #log-container { display: flex; flex-direction: column; gap: 8px; }
+        .log-item { padding: 12px; border-left: 4px solid var(--accent); background: #f8fafc; border-radius: 0 8px 8px 0; font-size: 0.85rem; display: flex; justify-content: space-between; }
+
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <div class="logo-section"><img src="/static/logo.png" alt="WhiteOn"></div>
+        <div class="nav-menu">
+            <div class="nav-item active" onclick="app.showPage('dashboard')"><i class="fas fa-home"></i> 대시보드</div>
+            <div class="nav-item" onclick="app.showPage('branches')"><i class="fas fa-network-wired"></i> 지사 관리</div>
+            <div class="nav-item" onclick="app.showPage('restaurants')"><i class="fas fa-store"></i> 고객 관리</div>
+            <div class="nav-item" onclick="app.showPage('requests')"><i class="fas fa-tools"></i> 수리 내역 관제</div>
+            <div class="nav-item" onclick="app.showPage('payments')"><i class="fas fa-credit-card"></i> 결제/환불 관리</div>
+            <div class="nav-item" onclick="app.showPage('logs')"><i class="fas fa-history"></i> 로그 센터</div>
+        </div>
+    </div>
+
+    <div class="main-wrapper">
+        <div class="top-bar"><div style="font-weight: 700; color: var(--text-light);">WhiteOn HQ 통합 관제</div></div>
+        
+        <div class="content-area">
+            <!-- 1. 대시보드 -->
+            <div id="page-dashboard" class="page active">
+                <h1>📊 서비스 통합 현황</h1>
+                <div class="stats-grid" id="dashboard-stats"></div>
+                <div class="card">
+                    <h3>🏆 지사별 성과 랭킹</h3>
+                    <table id="branch-rank-table">
+                        <thead><tr><th>순위</th><th>지사명</th><th>지역</th><th>완료수</th><th>매출합계</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 2. 지사 관리 -->
+            <div id="page-branches" class="page">
+                <h1>🏢 지사 파트너 관리</h1>
+                <div class="card">
+                    <h3>📍 지사 가입 승인 및 현황</h3>
+                    <table>
+                        <thead><tr><th>상태</th><th>지사명</th><th>지역</th><th>연락처</th><th>수수료</th><th>관리</th></tr></thead>
+                        <tbody id="branch-list"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 3. 고객 관리 -->
+            <div id="page-restaurants" class="page">
+                <h1>🍕 고객 식당 관리</h1>
+                <div class="card">
+                    <h3>📍 식당 가입 승인 및 현황</h3>
+                    <div style="overflow-x: auto;">
+                        <table>
+                            <thead><tr><th>상태</th><th>식당명</th><th>지역</th><th>연락처</th><th>주소</th><th>가입일</th><th>관리</th></tr></thead>
+                            <tbody id="restaurant-list"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. 수리 내역 관제 (유지 및 보강) -->
+            <div id="page-requests" class="page">
+                <h1>🛠️ 전체 수리 내역 관제</h1>
+                <div class="card">
+                    <div class="filter-section">
+                        <div class="filter-group"><label>상태 필터</label>
+                            <select id="req-filter-status" onchange="app.loadRequests()"><option value="">모든 상태</option><option value="PENDING">접수대기</option><option value="IN_PROGRESS">수리중</option><option value="PAYMENT_REQUESTED">결제대기</option><option value="COMPLETED">수리완료</option></select>
+                        </div>
+                        <button class="btn btn-primary" onclick="app.loadRequests()">새로고침</button>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr><th>상태</th><th>식당 지점</th><th>담당 지사</th><th>카테고리</th><th>현장사진</th><th>청구금액</th><th>리포트</th><th>날짜</th></tr>
+                        </thead>
+                        <tbody id="request-all-list"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 5. 결제 및 환불 관리 (복구!) -->
+            <div id="page-payments" class="page">
+                <h1>💳 결제 및 환불 관리</h1>
+                <div class="card">
+                    <div class="filter-section">
+                        <div class="filter-group"><label>상태</label><select id="p-status"><option value="">전체</option><option value="PAID">결제완료</option><option value="CANCELLED">취소됨</option></select></div>
+                        <button class="btn btn-primary" onclick="app.loadPayments()">검색</button>
+                    </div>
+                    <table>
+                        <thead><tr><th>결제일시</th><th>주문번호</th><th>금액</th><th>상태</th><th>관리</th></tr></thead>
+                        <tbody id="payment-list-body"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 6. 로그 센터 (정밀 필터 복구!) -->
+            <div id="page-logs" class="page">
+                <h1>📜 시스템 로그 센터</h1>
+                <div class="card">
+                    <div class="filter-section">
+                        <div class="filter-group"><label>카테고리</label><select id="filter-table"><option value="">전체</option><option value="service_requests">고장접수</option><option value="branches">지사가입</option><option value="payments">결제</option></select></div>
+                        <div class="filter-group"><label>작업</label><select id="filter-action"><option value="">전체</option><option value="INSERT">생성</option><option value="UPDATE">수정</option><option value="DELETE">삭제</option></select></div>
+                        <div class="filter-group"><label>대상 ID</label><input type="text" id="filter-id" placeholder="ID 입력"></div>
+                        <button class="btn btn-primary" onclick="app.loadLogs()">로그 검색</button>
+                    </div>
+                    <div id="log-container"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = "/api/v1";
+        const app = {
+            showPage(id) {
+                document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+                document.getElementById('page-' + id).classList.add('active');
+                document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+                if(event) event.currentTarget.classList.add('active');
+                this.loadData(id);
+            },
+            loadData(id) {
+                if(id==='dashboard') this.loadDashboard();
+                if(id==='branches') this.loadBranches();
+                if(id==='restaurants') this.loadRestaurants();
+                if(id==='requests') this.loadRequests();
+                if(id==='payments') this.loadPayments();
+                if(id==='logs') this.loadLogs();
+            },
+            async loadDashboard() {
+                const res = await fetch(`${API_BASE}/branches/metrics/performance`);
+                const data = await res.json();
+                document.getElementById('dashboard-stats').innerHTML = `
+                    <div class="stat-card"><div class="stat-label">총 수리완료</div><div class="stat-value">${data.reduce((a,b)=>a+b.completed_requests, 0)}건</div></div>
+                    <div class="stat-card"><div class="stat-label">총 매출액</div><div class="stat-value">₩${data.reduce((a,b)=>a+b.total_revenue,0).toLocaleString()}</div></div>
+                    <div class="stat-card"><div class="stat-label">본사 수익</div><div class="stat-value">₩${data.reduce((a,b)=>a+b.total_hq_commission,0).toLocaleString()}</div></div>
+                    <div class="stat-card"><div class="stat-label">등록 지사수</div><div class="stat-value">${data.length}개</div></div>
+                `;
+                document.querySelector('#branch-rank-table tbody').innerHTML = data.map((b,i)=>`<tr><td>${i+1}</td><td><b>${b.branch_name}</b></td><td>${b.region_code}</td><td>${b.completed_requests}건</td><td>₩${b.total_revenue.toLocaleString()}</td></tr>`).join('');
+            },
+            async loadBranches() {
+                const res = await fetch(`${API_BASE}/branches/`);
+                const data = await res.json();
+                document.getElementById('branch-list').innerHTML = data.reverse().map(b=>`<tr><td><span class="badge ${b.is_approved?'badge-completed':'badge-pending'}">${b.is_approved?'승인완료':'대기중'}</span></td><td><b>${b.name}</b></td><td>${b.region_code}</td><td>${b.manager_phone}</td><td>${b.commission_rate}%</td><td>${!b.is_approved?`<button class="btn btn-primary btn-sm" onclick="app.approve('branches','${b.id}')">승인</button>`:''}</td></tr>`).join('');
+            },
+            async loadRestaurants() {
+                const res = await fetch(`${API_BASE}/restaurants/`);
+                const data = await res.json();
+                document.getElementById('restaurant-list').innerHTML = data.reverse().map(r=>`<tr><td><span class="badge ${r.is_approved?'badge-completed':'badge-pending'}">${r.is_approved?'승인완료':'대기중'}</span></td><td><b>${r.name}</b></td><td>${r.region || '-'}</td><td>${r.phone}</td><td style="font-size:0.8rem; color:var(--text-light);">${r.address}</td><td>${new Date(r.created_at).toLocaleDateString()}</td><td>${!r.is_approved?`<button class="btn btn-primary btn-sm" onclick="app.approve('restaurants','${r.id}')">승인</button>`:''}</td></tr>`).join('');
+            },
+            async loadRequests() {
+                const status = document.getElementById('req-filter-status').value;
+                const res = await fetch(`${API_BASE}/requests/${status ? '?status='+status : ''}`);
+                const data = await res.json();
+                document.getElementById('request-all-list').innerHTML = data.reverse().map(r=> {
+                    const meta = r.metadata || {};
+                    const photo = r.media && r.media.length > 0 ? r.media[0].file_url : null;
+                    const reportPhoto = r.media && r.media.length > 1 ? r.media[r.media.length-1].file_url : null;
+                    return `<tr><td><span class="badge badge-${this.getStatClass(r.status)}">${this.formatStat(r.status)}</span></td><td><b>${r.restaurant_name || '미확인'}</b></td><td>${r.branch_name || '-'}</td><td>${r.category}</td><td><div style="display:flex;gap:4px;">${photo?`<img src="${photo}" class="photo-thumb" onclick="window.open('${photo}')">`:''}${reportPhoto?`<img src="${reportPhoto}" class="photo-thumb" onclick="window.open('${reportPhoto}')" style="border-color:var(--success)">`:''}</div></td><td style="font-weight:700;color:var(--accent);">₩${(meta.requested_amount||0).toLocaleString()}</td><td><div style="font-size:0.75rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${meta.problem||'-'}</div></td><td>${new Date(r.created_at).toLocaleDateString()}</td></tr>`;
+                }).join('');
+            },
+            async loadPayments() {
+                const status = document.getElementById('p-status').value;
+                const res = await fetch(`${API_BASE}/payments/${status ? '?status='+status : ''}`);
+                const data = await res.json();
+                document.getElementById('payment-list-body').innerHTML = data.map(p => `<tr><td>${new Date(p.paid_at).toLocaleString()}</td><td style="font-family:monospace;font-size:0.8rem;">${p.merchant_uid}</td><td style="font-weight:700;">₩${p.amount.toLocaleString()}</td><td><span class="badge badge-completed">${p.status}</span></td><td><button class="btn btn-danger btn-sm" onclick="alert('환불 기능 준비 중')">환불</button></td></tr>`).join('');
+            },
+            async loadLogs() {
+                const table = document.getElementById('filter-table').value;
+                const action = document.getElementById('filter-action').value;
+                const id = document.getElementById('filter-id').value;
+                let url = `${API_BASE}/audit-logs/?`;
+                if(table) url += `table_name=${table}&`;
+                if(id) url += `target_id=${id}&`;
+                const res = await fetch(url);
+                let logs = await res.json();
+                if(action) logs = logs.filter(l => l.action === action);
+                document.getElementById('log-container').innerHTML = logs.reverse().slice(0, 50).map(l => `<div class="log-item"><div><div style="font-size:0.7rem; color:var(--text-light);">${new Date(l.created_at).toLocaleString()}</div><b>${l.table_name}</b> [${l.action}] (ID: ${l.target_id})</div><i class="fas fa-info-circle" style="color:#cbd5e1;cursor:pointer;" onclick="alert(JSON.stringify(${JSON.stringify(l.payload)}, null, 2))"></i></div>`).join('');
+            },
+            getStatClass(s) { return s==='PENDING'?'pending':(s==='IN_PROGRESS'?'progress':(s==='PAYMENT_REQUESTED'?'wait':'completed')); },
+            formatStat(s) { const map={'PENDING':'접수대기','IN_PROGRESS':'수리중','PAYMENT_REQUESTED':'결제대기','COMPLETED':'수리완료'}; return map[s]||s; },
+            async approve(type, id) { if(!confirm('승인하시겠습니까?')) return; await fetch(`${API_BASE}/${type}/${id}`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ is_approved: true }) }); this.loadData(type); }
+        };
+        app.loadDashboard();
+    </script>
+</body>
+</html>

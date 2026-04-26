@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhiteOn | 사장님 플랫폼</title>
+    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #2563eb; --primary-dark: #1e40af; --bg: #f1f5f9;
+            --card: #ffffff; --text: #0f172a; --text-light: #64748b;
+        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { 
+            font-family: 'Pretendard', sans-serif; background-color: #334155; 
+            margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh;
+        }
+
+        /* 모바일 뷰 컨테이너 */
+        .mobile-container {
+            width: 100%; max-width: 480px; height: 100vh; max-height: 900px;
+            background: var(--bg); position: relative; overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+            display: flex; flex-direction: column;
+        }
+        @media (max-height: 900px) { .mobile-container { height: 100vh; max-height: none; border-radius: 0; } }
+        @media (min-width: 481px) { .mobile-container { border-radius: 30px; border: 8px solid #1e293b; } }
+
+        .header { background: white; padding: 20px; text-align: center; border-bottom: 1px solid #e2e8f0; }
+        .header img { height: 35px; }
+
+        .content { flex: 1; overflow-y: auto; padding: 20px; padding-bottom: 100px; }
+        .page { display: none; animation: fadeIn 0.3s ease; }
+        .page.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .card { background: white; border-radius: 20px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+        h2 { margin-top: 0; font-size: 1.2rem; color: var(--text); }
+
+        .input-group { margin-bottom: 15px; }
+        .input-group label { display: block; font-size: 0.85rem; color: var(--text-light); margin-bottom: 5px; font-weight: 600; }
+        .input-group input, .input-group select, .input-group textarea {
+            width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 12px; font-size: 0.95rem; outline: none; transition: 0.2s;
+        }
+        .input-group input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+
+        .btn { 
+            width: 100%; padding: 15px; border-radius: 12px; border: none; font-weight: 700; cursor: pointer; 
+            font-size: 1rem; transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 10px;
+        }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:active { transform: scale(0.98); background: var(--primary-dark); }
+        .btn-secondary { background: #e2e8f0; color: var(--text); margin-top: 10px; }
+
+        .nav-bar {
+            position: absolute; bottom: 0; width: 100%; background: white; 
+            display: flex; justify-content: space-around; padding: 15px 0; border-top: 1px solid #e2e8f0;
+        }
+        .nav-item { color: #94a3b8; font-size: 1.5rem; cursor: pointer; transition: 0.2s; }
+        .nav-item.active { color: var(--primary); }
+
+        /* 상태 뱃지 */
+        .badge { padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 700; }
+        .badge-pending { background: #fee2e2; color: #ef4444; }
+        .badge-progress { background: #fef9c3; color: #ca8a04; }
+
+        .required { color: var(--danger); margin-left: 3px; }
+        .error-msg { color: #ef4444; font-size: 0.8rem; margin-top: 5px; display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="mobile-container">
+        <div class="header">
+            <img src="/static/logo.png" alt="WhiteOn" onclick="location.reload()">
+        </div>
+
+        <div class="content">
+            <!-- 1. 로그인 페이지 -->
+            <div id="page-login" class="page active">
+                <div style="text-align: center; margin: 40px 0;">
+                    <i class="fas fa-store" style="font-size: 3rem; color: var(--primary);"></i>
+                    <h1 style="margin-top: 20px;">사장님 로그인</h1>
+                    <p style="color: var(--text-light);">전국세척기연합 통합 관리 서비스</p>
+                </div>
+                <div class="card">
+                    <div class="input-group">
+                        <label>전화번호</label>
+                        <input type="text" id="login-phone" placeholder="'-' 제외하고 입력">
+                    </div>
+                    <button class="btn btn-primary" onclick="app.login()">로그인</button>
+                    <button class="btn btn-secondary" onclick="app.showPage('signup')">신규 식당 가입신청</button>
+                    <div style="margin-top:20px; text-align:center;">
+                        <a href="https://whiteon.kr/" target="_blank" style="color:var(--text-light); text-decoration:none; font-size:0.8rem;">공식 홈페이지 바로가기 <i class="fas fa-external-link-alt"></i></a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. 회원가입 페이지 (RESTORED & UPGRADED) -->
+            <div id="page-signup" class="page">
+                <h2>🏢 신규 식당 가입 신청</h2>
+                <div class="card">
+                    <div class="input-group">
+                        <label>식당 지점명<span style="color:red;">*</span></label>
+                        <input type="text" id="reg-name" placeholder="예: 화이트온 식당 양주점">
+                    </div>
+                    <div class="input-group">
+                        <label>대표자 성함</label>
+                        <input type="text" id="reg-owner" placeholder="실명을 입력해주세요">
+                    </div>
+                    <div class="input-group">
+                        <label>전화번호 (로그인용)<span style="color:red;">*</span></label>
+                        <input type="text" id="reg-phone" placeholder="'-' 제외하고 입력">
+                    </div>
+                    <div class="input-group">
+                        <label>지역 선택<span style="color:red;">*</span></label>
+                        <select id="reg-region">
+                            <option value="">지역을 선택하세요</option>
+                            <option value="SEOUL">서울특별시</option>
+                            <option value="GYEONGGI">경기도</option>
+                            <option value="INCHEON">인천광역시</option>
+                            <option value="BUSAN">부산광역시</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>상세 주소<span style="color:red;">*</span></label>
+                        <input type="text" id="reg-address" placeholder="정확한 주소를 입력해주세요">
+                    </div>
+                    <button class="btn btn-primary" onclick="app.register()">가입 신청하기</button>
+                    <button class="btn btn-secondary" onclick="app.showPage('login')">이전으로</button>
+                </div>
+            </div>
+
+            <!-- 3. 대기중 페이지 -->
+            <div id="page-waiting" class="page">
+                <div style="text-align: center; margin-top: 60px;">
+                    <div style="font-size: 4rem; color: var(--warning); margin-bottom: 20px;"><i class="fas fa-clock"></i></div>
+                    <h2>본사 승인 대기 중</h2>
+                    <p style="color: var(--text-light); line-height: 1.6;">식당 가입 신청이 접수되었습니다.<br>본사에서 정보 확인 후 승인해 드립니다.<br>조금만 기다려 주세요!</p>
+                    <button class="btn btn-secondary" onclick="app.logout()" style="margin-top: 30px;">로그인 화면으로</button>
+                </div>
+            </div>
+
+            <!-- 4. 메인 대시보드 (접수 목록) -->
+            <div id="page-main" class="page">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 id="res-name-display" style="margin:0;">식당명</h2>
+                    <span class="badge badge-pending">정상 운영</span>
+                </div>
+                <h3>최근 수리 요청 내역</h3>
+                <div id="request-list"></div>
+                <button class="btn btn-primary" onclick="app.showPage('create-request')" style="position: fixed; bottom: 100px; width: calc(100% - 40px); max-width: 440px;">
+                    <i class="fas fa-plus"></i> 새로운 수리 접수
+                </button>
+            </div>
+
+            <!-- 5. 수리 접수 페이지 -->
+            <div id="page-create-request" class="page">
+                <h2>🛠️ 수리 요청 접수</h2>
+                <div class="card">
+                    <div class="input-group">
+                        <label>고장 카테고리</label>
+                        <select id="req-category">
+                            <option>수압 저하 / 물 안나옴</option>
+                            <option>배수 불량 / 물 안빠짐</option>
+                            <option>온수 불량</option>
+                            <option>전원 안켜짐 / 오작동</option>
+                            <option>세제 공급 불량</option>
+                            <option>기타 (상세내용 기재)</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>상세 증상</label>
+                        <textarea id="req-desc" rows="4" placeholder="어디가 어떻게 안 되는지 자세히 적어주시면 빠른 해결에 도움이 됩니다."></textarea>
+                    </div>
+                    <div class="input-group">
+                        <label>현장 사진 첨부<span style="color:red;">*</span></label>
+                        <input type="file" id="req-file" accept="image/*" capture="environment">
+                        <p style="font-size:0.75rem; color:var(--text-light); margin-top:5px;">정확한 진단을 위해 고장 부위 사진을 꼭 올려주세요.</p>
+                    </div>
+                    <button class="btn btn-primary" onclick="app.submitRequest()">접수 완료하기</button>
+                    <button class="btn btn-secondary" onclick="app.showPage('main')">취소</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 하단 네비게이션 (로그인 시 노출) -->
+        <div id="main-nav" class="nav-bar" style="display: none;">
+            <div class="nav-item active" onclick="app.showPage('main')"><i class="fas fa-home"></i></div>
+            <div class="nav-item" onclick="app.showPage('create-request')"><i class="fas fa-plus-circle"></i></div>
+            <div class="nav-item" onclick="app.logout()"><i class="fas fa-sign-out-alt"></i></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = "/api/v1";
+        const app = {
+            restaurant: null,
+
+            showPage(id) {
+                document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+                document.getElementById('page-' + id).classList.add('active');
+                if(id === 'main' || id === 'create-request') {
+                    document.getElementById('main-nav').style.display = 'flex';
+                } else {
+                    document.getElementById('main-nav').style.display = 'none';
+                }
+            },
+
+            async login() {
+                const phone = document.getElementById('login-phone').value;
+                if(!phone) return alert('전화번호를 입력해주세요.');
+                const res = await fetch(`${API_BASE}/restaurants/`);
+                const restaurants = await res.json();
+                const found = restaurants.find(r => r.phone === phone);
+                
+                if(found) {
+                    this.restaurant = found;
+                    if(!found.is_approved) {
+                        this.showPage('waiting');
+                    } else {
+                        document.getElementById('res-name-display').innerText = found.name;
+                        this.showPage('main');
+                        this.loadRequests();
+                    }
+                } else {
+                    alert('등록되지 않은 번호입니다. 가입 신청을 먼저 해주세요.');
+                }
+            },
+
+            async register() {
+                const name = document.getElementById('reg-name').value;
+                const phone = document.getElementById('reg-phone').value;
+                const address = document.getElementById('reg-address').value;
+                const region = document.getElementById('reg-region').value;
+                const owner = document.getElementById('reg-owner').value;
+
+                if(!name || !phone || !address || !region) {
+                    return alert('빨간 별표(*)가 표시된 필수 항목을 모두 입력해주세요.');
+                }
+
+                const res = await fetch(`${API_BASE}/restaurants/`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ name, phone, address, owner_name: owner, latitude: 0, longitude: 0 })
+                });
+
+                if(res.ok) {
+                    alert('가입 신청이 완료되었습니다! 본사 승인 후 이용 가능합니다.');
+                    this.showPage('login');
+                } else {
+                    alert('가입 신청 중 오류가 발생했습니다.');
+                }
+            },
+
+            async loadRequests() {
+                const res = await fetch(`${API_BASE}/requests/?restaurant_id=${this.restaurant.id}`);
+                const requests = await res.json();
+                document.getElementById('request-list').innerHTML = requests.reverse().map(r => `
+                    <div class="card" onclick="app.viewDetail('${r.id}')">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                            <span class="badge ${this.getStatClass(r.status)}">${this.formatStat(r.status)}</span>
+                            <small style="color:var(--text-light);">${new Date(r.created_at).toLocaleDateString()}</small>
+                        </div>
+                        <div style="font-weight:700; margin-bottom:5px;">${r.category}</div>
+                        <div style="font-size:0.85rem; color:var(--text-light); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${r.description || '상세내용 없음'}</div>
+                    </div>
+                `).join('') || '<p style="text-align:center; color:#94a3b8; margin:40px 0;">아직 접수된 내역이 없습니다.</p>';
+            },
+
+            async submitRequest() {
+                const cat = document.getElementById('req-category').value;
+                const desc = document.getElementById('req-desc').value;
+                const file = document.getElementById('req-file').files[0];
+
+                if(!file) return alert('현장 사진 첨부는 필수입니다!');
+
+                const reqRes = await fetch(`${API_BASE}/requests/`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        restaurant_id: this.restaurant.id,
+                        category: cat,
+                        description: desc,
+                        status: 'PENDING'
+                    })
+                });
+
+                const reqData = await reqRes.json();
+
+                if(file) {
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    await fetch(`${API_BASE}/requests/${reqData.id}/media`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                }
+
+                alert('접수가 완료되었습니다. 담당 지사에서 곧 연락드릴 예정입니다.');
+                this.showPage('main');
+                this.loadRequests();
+            },
+
+            getStatClass(s) { return s==='PENDING'?'badge-pending':(s==='IN_PROGRESS'?'badge-progress':'badge-pending'); },
+            formatStat(s) { const map={'PENDING':'접수완료','IN_PROGRESS':'수리중','PAYMENT_REQUESTED':'결제대기','COMPLETED':'수리완료'}; return map[s]||s; },
+            logout() { this.restaurant = null; this.showPage('login'); }
+        };
+    </script>
+</body>
+</html>
