@@ -6,306 +6,233 @@
     <title>WhiteOn | 사장님 플랫폼</title>
     <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
     <style>
         :root {
-            --primary: #2563eb; --primary-dark: #1e40af; --bg: #f1f5f9;
-            --card: #ffffff; --text: #0f172a; --text-light: #64748b;
+            --primary: #2563eb; --accent: #1e40af; --bg: #f8fafc; --card: #ffffff;
+            --text: #0f172a; --text-light: #64748b; --border: #e2e8f0;
+            --success: #10b981; --danger: #ef4444;
         }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { 
-            font-family: 'Pretendard', sans-serif; background-color: #334155; 
-            margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh;
-        }
-
-        /* 모바일 뷰 컨테이너 */
-        .mobile-container {
-            width: 100%; max-width: 480px; height: 100vh; max-height: 900px;
-            background: var(--bg); position: relative; overflow: hidden;
-            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
-            display: flex; flex-direction: column;
-        }
+        body { font-family: 'Pretendard', sans-serif; background-color: #1e293b; margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .mobile-container { width: 100%; max-width: 480px; height: 100vh; max-height: 900px; background: var(--bg); position: relative; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); display: flex; flex-direction: column; }
         @media (max-height: 900px) { .mobile-container { height: 100vh; max-height: none; border-radius: 0; } }
-        @media (min-width: 481px) { .mobile-container { border-radius: 30px; border: 8px solid #1e293b; } }
-
-        .header { background: white; padding: 20px; text-align: center; border-bottom: 1px solid #e2e8f0; }
-        .header img { height: 35px; }
-
+        @media (min-width: 481px) { .mobile-container { border-radius: 30px; border: 8px solid #334155; } }
+        .header { background: white; padding: 20px; text-align: center; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10; }
+        .header img { height: 30px; }
         .content { flex: 1; overflow-y: auto; padding: 20px; padding-bottom: 100px; }
-        .page { display: none; animation: fadeIn 0.3s ease; }
+        .page { display: none; }
         .page.active { display: block; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
-        .card { background: white; border-radius: 20px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
-        h2 { margin-top: 0; font-size: 1.2rem; color: var(--text); }
-
-        .input-group { margin-bottom: 15px; }
-        .input-group label { display: block; font-size: 0.85rem; color: var(--text-light); margin-bottom: 5px; font-weight: 600; }
-        .input-group input, .input-group select, .input-group textarea {
-            width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 12px; font-size: 0.95rem; outline: none; transition: 0.2s;
-        }
+        .card { background: white; border-radius: 20px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); transition: 0.2s; cursor: pointer; border: 1px solid var(--border); }
+        .card.expanded { border: 2px solid var(--primary); }
+        .detail-view { display: none; margin-top: 15px; padding-top: 15px; border-top: 1px solid #f1f5f9; font-size: 0.85rem; color: var(--text-light); line-height: 1.6; }
+        .card.expanded .detail-view { display: block; }
+        .input-group { margin-bottom: 15px; position: relative; }
+        .input-group label { display: block; font-size: 0.8rem; color: var(--text-light); margin-bottom: 5px; font-weight: 600; }
+        .input-group input, .input-group textarea, .input-group select { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 12px; font-size: 0.9rem; outline: none; transition: 0.2s; }
         .input-group input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
-
-        .btn { 
-            width: 100%; padding: 15px; border-radius: 12px; border: none; font-weight: 700; cursor: pointer; 
-            font-size: 1rem; transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 10px;
-        }
+        .btn-inline { position: absolute; right: 8px; bottom: 6px; padding: 6px 12px; border-radius: 8px; font-size: 0.75rem; background: #f1f5f9; border: 1px solid var(--border); cursor: pointer; font-weight: 700; }
+        .btn { width: 100%; padding: 15px; border-radius: 14px; border: none; font-weight: 700; cursor: pointer; font-size: 1rem; transition: 0.2s; }
         .btn-primary { background: var(--primary); color: white; }
-        .btn-primary:active { transform: scale(0.98); background: var(--primary-dark); }
+        .btn-primary:active { transform: scale(0.98); }
         .btn-secondary { background: #e2e8f0; color: var(--text); margin-top: 10px; }
-
-        .nav-bar {
-            position: absolute; bottom: 0; width: 100%; background: white; 
-            display: flex; justify-content: space-around; padding: 15px 0; border-top: 1px solid #e2e8f0;
-        }
-        .nav-item { color: #94a3b8; font-size: 1.5rem; cursor: pointer; transition: 0.2s; }
+        .nav-bar { position: absolute; bottom: 0; width: 100%; background: white; display: flex; justify-content: space-around; padding: 15px 0; border-top: 1px solid var(--border); box-shadow: 0 -4px 12px rgba(0,0,0,0.05); }
+        .nav-item { color: #94a3b8; font-size: 1.4rem; cursor: pointer; text-align: center; }
         .nav-item.active { color: var(--primary); }
-
-        /* 상태 뱃지 */
-        .badge { padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 700; }
-        .badge-pending { background: #fee2e2; color: #ef4444; }
-        .badge-progress { background: #fef9c3; color: #ca8a04; }
-
-        .required { color: var(--danger); margin-left: 3px; }
-        .error-msg { color: #ef4444; font-size: 0.8rem; margin-top: 5px; display: none; }
+        .nav-item span { display: block; font-size: 0.65rem; margin-top: 4px; font-weight: 700; }
+        .badge { padding: 4px 10px; border-radius: 6px; font-size: 0.7rem; font-weight: 800; color: white; }
+        .photo-thumb { width: 60px; height: 60px; border-radius: 10px; object-fit: cover; margin-top: 10px; border: 1px solid #eee; }
+        .media-box { width: 100%; border-radius: 14px; margin-top: 10px; border: 1px solid #eee; overflow: hidden; background: #f8fafc; }
     </style>
 </head>
 <body>
-
     <div class="mobile-container">
-        <div class="header">
-            <img src="/static/logo.png" alt="WhiteOn" onclick="location.reload()">
-        </div>
-
+        <div class="header"><img src="/static/logo.png" alt="WhiteOn"></div>
         <div class="content">
-            <!-- 1. 로그인 페이지 -->
             <div id="page-login" class="page active">
-                <div style="text-align: center; margin: 40px 0;">
-                    <i class="fas fa-store" style="font-size: 3rem; color: var(--primary);"></i>
-                    <h1 style="margin-top: 20px;">사장님 로그인</h1>
-                    <p style="color: var(--text-light);">전국세척기연합 통합 관리 서비스</p>
-                </div>
-                <div class="card">
-                    <div class="input-group">
-                        <label>전화번호</label>
-                        <input type="text" id="login-phone" placeholder="'-' 제외하고 입력">
-                    </div>
-                    <button class="btn btn-primary" onclick="app.login()">로그인</button>
-                    <button class="btn btn-secondary" onclick="app.showPage('signup')">신규 식당 가입신청</button>
-                    <div style="margin-top:20px; text-align:center;">
-                        <a href="https://whiteon.kr/" target="_blank" style="color:var(--text-light); text-decoration:none; font-size:0.8rem;">공식 홈페이지 바로가기 <i class="fas fa-external-link-alt"></i></a>
-                    </div>
+                <div style="text-align:center; margin:40px 0;"><i class="fas fa-store" style="font-size:3rem; color:var(--primary);"></i><h2>사장님 로그인</h2></div>
+                <div class="card" style="border:none; cursor:default;">
+                    <div class="input-group"><label>전화번호</label><input type="text" id="login-phone" placeholder="'-' 제외 입력"><button class="btn-inline" onclick="app.sendOTP('login')">인증번호</button></div>
+                    <div id="otp-group-login" class="input-group" style="display:none;"><label>인증번호</label><input type="text" id="login-otp" placeholder="숫자 6자리 입력"></div>
+                    <button type="button" class="btn btn-primary" onclick="app.login()" style="margin-top:10px;">로그인</button>
+                    <button type="button" class="btn" style="background:none; color:var(--text-light); margin-top:10px; font-size:0.85rem;" onclick="app.showPage('signup')">아직 회원이 아니신가요? 가입 신청</button>
                 </div>
             </div>
-
-            <!-- 2. 회원가입 페이지 (RESTORED & UPGRADED) -->
             <div id="page-signup" class="page">
-                <h2>🏢 신규 식당 가입 신청</h2>
-                <div class="card">
-                    <div class="input-group">
-                        <label>식당 지점명<span style="color:red;">*</span></label>
-                        <input type="text" id="reg-name" placeholder="예: 화이트온 식당 양주점">
-                    </div>
-                    <div class="input-group">
-                        <label>대표자 성함</label>
-                        <input type="text" id="reg-owner" placeholder="실명을 입력해주세요">
-                    </div>
-                    <div class="input-group">
-                        <label>전화번호 (로그인용)<span style="color:red;">*</span></label>
-                        <input type="text" id="reg-phone" placeholder="'-' 제외하고 입력">
-                    </div>
-                    <div class="input-group">
-                        <label>지역 선택<span style="color:red;">*</span></label>
-                        <select id="reg-region">
-                            <option value="">지역을 선택하세요</option>
-                            <option value="SEOUL">서울특별시</option>
-                            <option value="GYEONGGI">경기도</option>
-                            <option value="INCHEON">인천광역시</option>
-                            <option value="BUSAN">부산광역시</option>
-                        </select>
-                    </div>
-                    <div class="input-group">
-                        <label>상세 주소<span style="color:red;">*</span></label>
-                        <input type="text" id="reg-address" placeholder="정확한 주소를 입력해주세요">
-                    </div>
-                    <button class="btn btn-primary" onclick="app.register()">가입 신청하기</button>
-                    <button class="btn btn-secondary" onclick="app.showPage('login')">이전으로</button>
+                <h2>🍕 식당 가입 신청</h2>
+                <div class="card" style="border:none; cursor:default;">
+                    <div class="input-group"><label>식당 이름</label><input type="text" id="reg-name" placeholder="예: 화이트온 키친"></div>
+                    <div class="input-group"><label>지역 코드 (도시명)</label><input type="text" id="reg-region" placeholder="예: SUWON"></div>
+                    <div class="input-group"><label>식당 주소</label><input type="text" id="reg-address" readonly onclick="app.searchAddress()"><button type="button" class="btn-inline" onclick="app.searchAddress()">주소 찾기</button></div>
+                    <div class="input-group"><label>상세 주소</label><input type="text" id="reg-address-detail" placeholder="상세 주소 입력"></div>
+                    <div class="input-group"><label>연락처 (핸드폰)</label><input type="text" id="reg-phone" placeholder="'-' 제외 입력"><button type="button" class="btn-inline" onclick="app.sendOTP('signup')">인증번호</button></div>
+                    <div id="otp-group-signup" class="input-group" style="display:none;"><label>인증번호</label><input type="text" id="reg-otp" placeholder="숫자 6자리 입력"></div>
+                    <button type="button" class="btn btn-primary" onclick="app.register()" style="margin-top:10px;">가입 신청 완료</button>
+                    <button type="button" class="btn btn-secondary" onclick="app.showPage('login')" style="background:none; font-size:0.85rem; color:var(--text-light);">취소하고 이전으로</button>
                 </div>
             </div>
-
-            <!-- 3. 대기중 페이지 -->
-            <div id="page-waiting" class="page">
-                <div style="text-align: center; margin-top: 60px;">
-                    <div style="font-size: 4rem; color: var(--warning); margin-bottom: 20px;"><i class="fas fa-clock"></i></div>
-                    <h2>본사 승인 대기 중</h2>
-                    <p style="color: var(--text-light); line-height: 1.6;">식당 가입 신청이 접수되었습니다.<br>본사에서 정보 확인 후 승인해 드립니다.<br>조금만 기다려 주세요!</p>
-                    <button class="btn btn-secondary" onclick="app.logout()" style="margin-top: 30px;">로그인 화면으로</button>
+            <div id="page-reg-success" class="page">
+                <div style="text-align:center; margin-top:60px;">
+                    <i class="fas fa-check-circle" style="font-size:4rem; color:var(--success);"></i>
+                    <h2 style="margin-top:20px;">가입 신청 완료!</h2>
+                    <p style="color:var(--text-light); line-height:1.6;">식당 등록 신청이 정상적으로 접수되었습니다.<br>본사 승인 후 서비스를 이용하실 수 있습니다.</p>
+                    <button class="btn btn-primary" onclick="app.showPage('login')" style="margin-top:30px;">로그인하러 가기</button>
                 </div>
             </div>
-
-            <!-- 4. 메인 대시보드 (접수 목록) -->
-            <div id="page-main" class="page">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                    <h2 id="res-name-display" style="margin:0;">식당명</h2>
-                    <span class="badge badge-pending">정상 운영</span>
-                </div>
-                <h3>최근 수리 요청 내역</h3>
+            <div id="page-waiting" class="page"><div style="text-align:center; margin-top:60px;"><i class="fas fa-clock" style="font-size:4rem; color:var(--warning);"></i><h2>승인 대기 중</h2><p style="color:var(--text-light);">본사 승인 후 이용 가능합니다.</p><button class="btn btn-secondary" onclick="app.logout()">이전으로</button></div></div>
+            <div id="page-home" class="page">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;"><h2>내 수리 내역</h2><button class="btn btn-primary" style="width:auto; padding:8px 15px; font-size:0.8rem;" onclick="app.showPage('request')">새 수리 신청</button></div>
                 <div id="request-list"></div>
-                <button class="btn btn-primary" onclick="app.showPage('create-request')" style="position: fixed; bottom: 100px; width: calc(100% - 40px); max-width: 440px;">
-                    <i class="fas fa-plus"></i> 새로운 수리 접수
-                </button>
             </div>
-
-            <!-- 5. 수리 접수 페이지 -->
-            <div id="page-create-request" class="page">
-                <h2>🛠️ 수리 요청 접수</h2>
-                <div class="card">
-                    <div class="input-group">
-                        <label>고장 카테고리</label>
-                        <select id="req-category">
-                            <option>수압 저하 / 물 안나옴</option>
-                            <option>배수 불량 / 물 안빠짐</option>
-                            <option>온수 불량</option>
-                            <option>전원 안켜짐 / 오작동</option>
-                            <option>세제 공급 불량</option>
-                            <option>기타 (상세내용 기재)</option>
-                        </select>
-                    </div>
-                    <div class="input-group">
-                        <label>상세 증상</label>
-                        <textarea id="req-desc" rows="4" placeholder="어디가 어떻게 안 되는지 자세히 적어주시면 빠른 해결에 도움이 됩니다."></textarea>
-                    </div>
-                    <div class="input-group">
-                        <label>현장 사진 첨부<span style="color:red;">*</span></label>
-                        <input type="file" id="req-file" accept="image/*" capture="environment">
-                        <p style="font-size:0.75rem; color:var(--text-light); margin-top:5px;">정확한 진단을 위해 고장 부위 사진을 꼭 올려주세요.</p>
-                    </div>
-                    <button class="btn btn-primary" onclick="app.submitRequest()">접수 완료하기</button>
-                    <button class="btn btn-secondary" onclick="app.showPage('main')">취소</button>
+            <div id="page-request" class="page">
+                <h2>🛠️ 수리 신청</h2>
+                <div class="card" style="border:none; cursor:default;">
+                    <div class="input-group"><label>고장 카테고리</label><select id="req-category"><option>수압 저하</option><option>배수 불량</option><option>전원 안켜짐</option><option>이상 소음</option><option>기타</option></select></div>
+                    <div class="input-group"><label>상세 내용 (모델명 등)</label><textarea id="req-description" rows="3" placeholder="문제 상황을 자세히 적어주세요."></textarea></div>
+                    <div class="input-group"><label>현장 사진</label><input type="file" id="req-file" accept="image/*"></div>
+                    <button class="btn btn-primary" onclick="app.submitRequest()">수리 요청하기</button>
+                    <button class="btn btn-secondary" onclick="app.showPage('home')">취소</button>
+                </div>
+            </div>
+            <div id="page-payment-success" class="page">
+                <div style="text-align:center; margin-top:60px;">
+                    <i class="fas fa-check-double" style="font-size:4rem; color:var(--success);"></i>
+                    <h2 style="margin-top:20px;">결제 및 수리 완료!</h2>
+                    <p style="color:var(--text-light); line-height:1.6;">결제가 성공적으로 처리되었습니다.<br>화이트온 서비스를 이용해 주셔서 감사합니다.</p>
+                    <button class="btn btn-primary" onclick="app.showPage('home'); app.loadRequests();" style="margin-top:30px;">수리 내역 확인하기</button>
                 </div>
             </div>
         </div>
-
-        <!-- 하단 네비게이션 (로그인 시 노출) -->
-        <div id="main-nav" class="nav-bar" style="display: none;">
-            <div class="nav-item active" onclick="app.showPage('main')"><i class="fas fa-home"></i></div>
-            <div class="nav-item" onclick="app.showPage('create-request')"><i class="fas fa-plus-circle"></i></div>
-            <div class="nav-item" onclick="app.logout()"><i class="fas fa-sign-out-alt"></i></div>
+        <div id="boss-nav" class="nav-bar" style="display:none;">
+            <div class="nav-item active" onclick="app.switchTab('home')"><i class="fas fa-home"></i><span>홈</span></div>
+            <div class="nav-item" onclick="app.switchTab('request')"><i class="fas fa-plus-circle"></i><span>신청</span></div>
+            <div class="nav-item" onclick="app.logout()"><i class="fas fa-sign-out-alt"></i><span>로그아웃</span></div>
         </div>
     </div>
-
     <script>
         const API_BASE = "/api/v1";
         const app = {
-            restaurant: null,
-
-            showPage(id) {
-                document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-                document.getElementById('page-' + id).classList.add('active');
-                if(id === 'main' || id === 'create-request') {
-                    document.getElementById('main-nav').style.display = 'flex';
-                } else {
-                    document.getElementById('main-nav').style.display = 'none';
-                }
-            },
-
+            restaurant: null, generatedOTP: null, requests: [], currentRequest: null,
+            showPage(id) { document.querySelectorAll('.page').forEach(p => p.classList.remove('active')); document.getElementById('page-' + id).classList.add('active'); document.getElementById('boss-nav').style.display = (['login','signup','waiting','reg-success'].includes(id)) ? 'none' : 'flex'; },
+            searchAddress() { new daum.Postcode({ oncomplete: (data) => { document.getElementById('reg-address').value = data.address; document.getElementById('reg-address-detail').focus(); } }).open(); },
+            sendOTP(type) { this.generatedOTP = "111111"; alert(`테스트용 인증번호: [${this.generatedOTP}]`); document.getElementById(`otp-group-${type}`).style.display = 'block'; },
             async login() {
-                const phone = document.getElementById('login-phone').value;
-                if(!phone) return alert('전화번호를 입력해주세요.');
-                const res = await fetch(`${API_BASE}/restaurants/`);
-                const restaurants = await res.json();
-                const found = restaurants.find(r => r.phone === phone);
-                
-                if(found) {
-                    this.restaurant = found;
-                    if(!found.is_approved) {
-                        this.showPage('waiting');
+                const btn = document.querySelector('#page-login .btn-primary');
+                const originalText = btn ? btn.innerText : '로그인';
+                try {
+                    if(btn) { btn.innerText = '로그인 중...'; btn.disabled = true; }
+                    let phoneInput = document.getElementById('login-phone').value || '';
+                    let phone = phoneInput.replace(/[^0-9]/g, '').trim();
+                    if(!phone) throw new Error('핸드폰 번호를 입력해 주세요.');
+                    const res = await fetch(`${API_BASE}/restaurants/`);
+                    if(!res.ok) throw new Error('서버 연결에 실패했습니다.');
+                    const data = await res.json();
+                    const found = data.find(r => (r.phone || '').replace(/[^0-9]/g, '') === phone);
+                    if(found) {
+                        this.restaurant = found;
+                        if(!found.is_approved) {
+                            this.showPage('waiting');
+                        } else {
+                            this.showPage('home');
+                            await this.loadRequests();
+                        }
                     } else {
-                        document.getElementById('res-name-display').innerText = found.name;
-                        this.showPage('main');
-                        this.loadRequests();
+                        alert('가입되지 않은 번호입니다. 가입 신청을 먼저 진행해 주세요.');
                     }
-                } else {
-                    alert('등록되지 않은 번호입니다. 가입 신청을 먼저 해주세요.');
+                } catch(e) {
+                    alert('로그인 오류: ' + e.message);
+                } finally {
+                    if(btn) { btn.innerText = originalText; btn.disabled = false; }
                 }
             },
-
+            viewDetail(id) {
+                const card = document.querySelector(`.card[data-id="${id}"]`);
+                if(card) {
+                    card.classList.toggle('expanded');
+                    this.currentRequest = this.requests.find(x => x.id === id);
+                }
+            },
             async register() {
-                const name = document.getElementById('reg-name').value;
-                const phone = document.getElementById('reg-phone').value;
-                const address = document.getElementById('reg-address').value;
-                const region = document.getElementById('reg-region').value;
-                const owner = document.getElementById('reg-owner').value;
-
-                if(!name || !phone || !address || !region) {
-                    return alert('빨간 별표(*)가 표시된 필수 항목을 모두 입력해주세요.');
-                }
-
-                const res = await fetch(`${API_BASE}/restaurants/`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ name, phone, address, owner_name: owner, latitude: 0, longitude: 0 })
-                });
-
-                if(res.ok) {
-                    alert('가입 신청이 완료되었습니다! 본사 승인 후 이용 가능합니다.');
-                    this.showPage('login');
-                } else {
-                    alert('가입 신청 중 오류가 발생했습니다.');
-                }
+                const phone = document.getElementById('reg-phone').value; const name = document.getElementById('reg-name').value;
+                const region = document.getElementById('reg-region').value; const addr = document.getElementById('reg-address').value;
+                const detail = document.getElementById('reg-address-detail').value; const otp = document.getElementById('reg-otp').value;
+                if(!name || !phone || !addr || !detail) return alert('이름, 핸드폰 번호, 상세 주소는 필수 입력 사항입니다.');
+                const res = await fetch(`${API_BASE}/restaurants/`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, phone, region, address: `${addr} ${detail}`}) });
+                if(res.ok) this.showPage('reg-success'); else { const err = await res.json(); alert(err.detail || '가입 신청 실패'); }
             },
-
+            switchTab(id) { document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active')); event.currentTarget.classList.add('active'); this.showPage(id); if(id==='home') this.loadRequests(); },
             async loadRequests() {
                 const res = await fetch(`${API_BASE}/requests/?restaurant_id=${this.restaurant.id}`);
-                const requests = await res.json();
-                document.getElementById('request-list').innerHTML = requests.reverse().map(r => `
-                    <div class="card" onclick="app.viewDetail('${r.id}')">
-                        <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
-                            <span class="badge ${this.getStatClass(r.status)}">${this.formatStat(r.status)}</span>
-                            <small style="color:var(--text-light);">${new Date(r.created_at).toLocaleDateString()}</small>
-                        </div>
-                        <div style="font-weight:700; margin-bottom:5px;">${r.category}</div>
-                        <div style="font-size:0.85rem; color:var(--text-light); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${r.description || '상세내용 없음'}</div>
-                    </div>
-                `).join('') || '<p style="text-align:center; color:#94a3b8; margin:40px 0;">아직 접수된 내역이 없습니다.</p>';
+                const data = await res.json();
+                this.requests = data;
+                document.getElementById('request-list').innerHTML = data.reverse().map(r => {
+                    const status = r.status; const orderNo = r.id.split('-')[0].toUpperCase();
+                    const reqDate = new Date(r.created_at).toLocaleDateString();
+                    const meta = r.metadata || {};
+                    return `
+                        <div class="card" data-id="${r.id}" onclick="app.viewDetail('${r.id}')">
+                            <div style="font-size:0.75rem; color:var(--text-light); margin-bottom:5px;">접수일: ${reqDate} | 번호: #${orderNo}</div>
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <div style="font-weight:700;">${r.category}</div>
+                                <span class="badge" style="background:${this.getStatColor(status)}">${this.formatStat(status)}</span>
+                            </div>
+                            <div class="detail-view">
+                                <div style="margin-bottom:15px;"><b>진행 상황:</b> <span style="color:var(--primary); font-weight:700;">${this.getStatDesc(status)}</span></div>
+                                ${(['PAYMENT_REQUESTED', 'COMPLETED'].includes(status)) ? `
+                                    <div style="background:#f1f5f9; border-radius:15px; padding:15px; margin-bottom:15px; border-left:5px solid var(--success);">
+                                        <div style="font-size:0.75rem; color:var(--text-light); font-weight:800; margin-bottom:8px;">🛠️ 수리 완료 리포트</div>
+                                        <div style="margin-bottom:10px;"><b style="font-size:0.7rem; color:var(--primary);">[진단된 문제]</b><br><span style="font-size:0.85rem; color:var(--text);">${meta.problem || '-'}</span></div>
+                                        <div style="margin-bottom:10px;"><b style="font-size:0.7rem; color:var(--success);">[조치 내용]</b><br><span style="font-size:0.85rem; color:var(--text);">${meta.solution || '-'}</span></div>
+                                        ${r.media && r.media.length > 1 ? `<div style="margin-top:10px;"><b style="font-size:0.7rem; color:var(--text-light);">[수리 완료 사진]</b><div class="media-box"><img src="${r.media[r.media.length-1].file_url}"></div></div>` : ''}
+                                    </div>
+                                ` : ''}
+                                ${status === 'PAYMENT_REQUESTED' ? `
+                                    <div style="padding:18px; background:linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border-radius:18px; margin-bottom:15px; box-shadow: 0 10px 15px -3px rgba(37,99,235,0.1);">
+                                        <div style="font-size:0.7rem; color:var(--primary); font-weight:700;">최종 결제 금액</div>
+                                        <div style="font-size:1.8rem; font-weight:900; color:var(--primary); margin:5px 0;">₩${(meta.requested_amount||0).toLocaleString()}</div>
+                                        <button type="button" class="btn btn-primary" style="padding:12px; font-size:1.1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1);" onclick="event.stopPropagation(); app.preparePayment('${r.id}', ${meta.requested_amount})">지금 결제하기</button>
+                                    </div>
+                                ` : ''}
+                                <div style="margin-bottom:10px;"><b style="font-size:0.75rem;">📋 접수 당시 내용:</b><br><div style="padding:10px; background:white; border-radius:10px; margin-top:5px; border:1px solid var(--border);">${r.description || '-'}</div></div>
+                                ${r.media && r.media.length > 0 ? `<div style="font-size:0.7rem; color:var(--text-light); margin-bottom:4px;">[접수 시 첨부사진]</div><div class="media-box" style="opacity:0.8; height:120px;"><img src="${r.media[0].file_url}" style="height:100%; object-fit:cover; width:100%;"></div>` : ''}
+                            </div>
+                        </div>`;
+                }).join('') || '<p style="text-align:center; color:var(--text-light);">신청 내역이 없습니다.</p>';
             },
-
             async submitRequest() {
-                const cat = document.getElementById('req-category').value;
-                const desc = document.getElementById('req-desc').value;
+                const cat = document.getElementById('req-category').value; const desc = document.getElementById('req-description').value;
                 const file = document.getElementById('req-file').files[0];
-
-                if(!file) return alert('현장 사진 첨부는 필수입니다!');
-
-                const reqRes = await fetch(`${API_BASE}/requests/`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        restaurant_id: this.restaurant.id,
-                        category: cat,
-                        description: desc,
-                        status: 'PENDING'
-                    })
-                });
-
-                const reqData = await reqRes.json();
-
-                if(file) {
-                    const formData = new FormData();
-                    formData.append('file', file);
-                    await fetch(`${API_BASE}/requests/${reqData.id}/media`, {
-                        method: 'POST',
-                        body: formData
-                    });
+                const res = await fetch(`${API_BASE}/requests/`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({restaurant_id:this.restaurant.id, category:cat, description:desc, status:'PENDING'}) });
+                if(res.ok) {
+                    const newReq = await res.json();
+                    if(file) { const formData = new FormData(); formData.append('file', file); await fetch(`${API_BASE}/requests/${newReq.id}/media`, { method: 'POST', body: formData }); }
+                    alert('수리 요청이 접수되었습니다.'); this.showPage('home'); this.loadRequests();
                 }
-
-                alert('접수가 완료되었습니다. 담당 지사에서 곧 연락드릴 예정입니다.');
-                this.showPage('main');
-                this.loadRequests();
             },
-
-            getStatClass(s) { return s==='PENDING'?'badge-pending':(s==='IN_PROGRESS'?'badge-progress':'badge-pending'); },
-            formatStat(s) { const map={'PENDING':'접수완료','IN_PROGRESS':'수리중','PAYMENT_REQUESTED':'결제대기','COMPLETED':'수리완료'}; return map[s]||s; },
-            logout() { this.restaurant = null; this.showPage('login'); }
+            async pay(reqId, amount) {
+                if(!confirm(`₩${amount.toLocaleString()}원을 결제하시겠습니까? (테스트용 가상 결제)`)) return;
+                
+                const res = await fetch(`${API_BASE}/requests/${reqId}`, { 
+                    method:'PATCH', 
+                    headers:{'Content-Type':'application/json'}, 
+                    body:JSON.stringify({status:'COMPLETED'}) 
+                });
+                
+                if(res.ok) {
+                    alert('가상 결제가 성공적으로 완료되었습니다. 수리 완료 처리되었습니다.');
+                    this.showPage('payment-success');
+                    this.loadRequests();
+                } else {
+                    alert('결제 처리 중 오류가 발생했습니다.');
+                }
+            },
+            preparePayment(id, amount) {
+                this.pay(id, amount);
+            },
+            logout() { this.restaurant = null; this.showPage('login'); },
+            getStatColor(s) { const map={'PENDING':'#f59e0b', 'IN_PROGRESS':'#3b82f6', 'PAYMENT_REQUESTED':'#10b981', 'COMPLETED':'#64748b'}; return map[s]||'#000'; },
+            formatStat(s) { const map={'PENDING':'접수대기', 'IN_PROGRESS':'수리중', 'PAYMENT_REQUESTED':'결제대기', 'COMPLETED':'수리완료'}; return map[s]||s; },
+            getStatDesc(s) { const map={'PENDING':'본사에서 지사를 배정 중입니다.', 'IN_PROGRESS':'지사 매니저가 현장 수리 중입니다.', 'PAYMENT_REQUESTED':'수리가 완료되었습니다. 결제 후 수리 리포트를 확인하세요.', 'COMPLETED':'수리가 완료되었으며 결제가 끝났습니다.'}; return map[s]||''; }
         };
     </script>
 </body>

@@ -36,24 +36,41 @@ def create_request(data: RequestCreate, session: Session = Depends(get_session))
 
 from sqlalchemy.orm import selectinload
 
+from sqlalchemy import or_
+
 @router.get("/", response_model=List[RequestRead])
 def list_requests(
     status: Optional[str] = None, 
     restaurant_id: Optional[UUID] = None,
     assigned_branch_id: Optional[UUID] = None,
+    unassigned_region: Optional[str] = None,
     session: Session = Depends(get_session)
 ):
+    from app.models.domain import Restaurant
     statement = select(ServiceRequest).options(
         selectinload(ServiceRequest.media),
         selectinload(ServiceRequest.restaurant),
         selectinload(ServiceRequest.branch)
     )
-    if status:
-        statement = statement.where(ServiceRequest.status == status)
-    if restaurant_id:
-        statement = statement.where(ServiceRequest.restaurant_id == restaurant_id)
-    if assigned_branch_id:
-        statement = statement.where(ServiceRequest.assigned_branch_id == assigned_branch_id)
+    
+    if unassigned_region and assigned_branch_id:
+        # 지사 전용: 자신에게 배정된 건 OR (미배정 건 중 해당 지역 주소 포함 건)
+        statement = statement.join(ServiceRequest.restaurant).where(
+            or_(
+                ServiceRequest.assigned_branch_id == assigned_branch_id,
+                or_(
+                    ServiceRequest.assigned_branch_id == None,
+                    ServiceRequest.assigned_branch_id == None # Placeholder for OR logic
+                ) & Restaurant.address.contains(unassigned_region)
+            )
+        )
+    else:
+        if status:
+            statement = statement.where(ServiceRequest.status == status)
+        if restaurant_id:
+            statement = statement.where(ServiceRequest.restaurant_id == restaurant_id)
+        if assigned_branch_id:
+            statement = statement.where(ServiceRequest.assigned_branch_id == assigned_branch_id)
     
     results = session.exec(statement).all()
     return [RequestRead.from_db(r) for r in results]

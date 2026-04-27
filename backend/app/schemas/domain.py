@@ -63,12 +63,14 @@ class RequestRead(BaseModel):
 class BranchCreate(BaseModel):
     name: str
     region_code: str
+    address: Optional[str] = None
     manager_phone: Optional[str] = None
     commission_rate: float = 0.0
 
 class BranchUpdate(BaseModel):
     name: Optional[str] = None
     region_code: Optional[str] = None
+    address: Optional[str] = None
     manager_phone: Optional[str] = None
     commission_rate: Optional[float] = None
     is_approved: Optional[bool] = None
@@ -77,6 +79,7 @@ class BranchRead(BaseModel):
     id: UUID
     name: str
     region_code: str
+    address: Optional[str] = None
     manager_phone: Optional[str]
     commission_rate: float
     is_approved: bool
@@ -129,6 +132,7 @@ class PaymentVerify(BaseModel):
 class PaymentRead(BaseModel):
     id: UUID
     request_id: UUID
+    merchant_uid: str
     amount: float
     status: str
     paid_at: datetime

@@ -6,6 +6,7 @@
     <title>WhiteOn | 매니저 플랫폼</title>
     <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
     <style>
         :root {
             --primary: #1e293b; --accent: #2563eb; --bg: #f8fafc; --card: #ffffff;
@@ -13,286 +14,300 @@
             --success: #10b981; --danger: #ef4444; --warning: #f59e0b;
         }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { 
-            font-family: 'Pretendard', sans-serif; background-color: #1e293b; 
-            margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh;
-        }
-
-        /* 모바일 뷰 컨테이너 */
-        .mobile-container {
-            width: 100%; max-width: 480px; height: 100vh; max-height: 900px;
-            background: var(--bg); position: relative; overflow: hidden;
-            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
-            display: flex; flex-direction: column;
-        }
+        body { font-family: 'Pretendard', sans-serif; background-color: #1e293b; margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .mobile-container { width: 100%; max-width: 480px; height: 100vh; max-height: 900px; background: var(--bg); position: relative; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); display: flex; flex-direction: column; }
         @media (max-height: 900px) { .mobile-container { height: 100vh; max-height: none; border-radius: 0; } }
         @media (min-width: 481px) { .mobile-container { border-radius: 30px; border: 8px solid #334155; } }
-
-        .header { background: #1e293b; padding: 20px; text-align: center; color: white; }
-        .header img { height: 30px; filter: brightness(0) invert(1); }
-
+        .header { background: #1e293b; padding: 15px 20px; color: white; position: sticky; top: 0; z-index: 10; display: flex; justify-content: space-between; align-items: center; }
+        .header img { height: 25px; filter: brightness(0) invert(1); }
+        .header .user-badge { font-size: 0.75rem; font-weight: 700; background: rgba(255,255,255,0.1); padding: 4px 10px; border-radius: 20px; display: none; }
         .content { flex: 1; overflow-y: auto; padding: 20px; padding-bottom: 100px; }
         .page { display: none; }
         .page.active { display: block; }
-
-        .card { background: white; border-radius: 16px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
-        h2 { margin-top: 0; font-size: 1.1rem; color: var(--text); }
-
-        .input-group { margin-bottom: 15px; }
+        .card { background: white; border-radius: 16px; padding: 18px; margin-bottom: 15px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); transition: 0.2s; cursor: pointer; border-left: 5px solid #e2e8f0; }
+        .detail-view { display: none; margin-top: 15px; padding-top: 15px; border-top: 1px solid #f1f5f9; font-size: 0.85rem; color: var(--text-light); line-height: 1.6; }
+        .card.expanded .detail-view { display: block; }
+        .input-group { margin-bottom: 15px; position: relative; }
         .input-group label { display: block; font-size: 0.8rem; color: var(--text-light); margin-bottom: 5px; font-weight: 600; }
-        .input-group input, .input-group textarea, .input-group select {
-            width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 12px; font-size: 0.9rem; outline: none;
-        }
-
+        .input-group input, .input-group textarea, .input-group select { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 12px; font-size: 0.9rem; outline: none; }
+        .btn-inline { position: absolute; right: 8px; bottom: 6px; padding: 6px 12px; border-radius: 8px; font-size: 0.75rem; background: #f1f5f9; border: 1px solid var(--border); cursor: pointer; font-weight: 700; }
         .btn { width: 100%; padding: 15px; border-radius: 12px; border: none; font-weight: 700; cursor: pointer; font-size: 0.95rem; }
         .btn-primary { background: var(--accent); color: white; }
         .btn-secondary { background: #e2e8f0; color: var(--text); margin-top: 10px; }
-
-        .nav-bar {
-            position: absolute; bottom: 0; width: 100%; background: white; 
-            display: flex; justify-content: space-around; padding: 15px 0; border-top: 1px solid var(--border);
-        }
+        .nav-bar { position: absolute; bottom: 0; width: 100%; background: white; display: flex; justify-content: space-around; padding: 15px 0; border-top: 1px solid var(--border); }
         .nav-item { color: #94a3b8; font-size: 1.3rem; cursor: pointer; text-align: center; }
         .nav-item.active { color: var(--accent); }
         .nav-item span { display: block; font-size: 0.65rem; margin-top: 4px; font-weight: 700; }
-
-        .badge { padding: 4px 10px; border-radius: 6px; font-size: 0.7rem; font-weight: 800; }
-        .badge-pending { background: #fee2e2; color: #ef4444; }
-        .badge-progress { background: #fef9c3; color: #ca8a04; }
-
-        /* 수리 리포트 스타일 */
-        .report-box { background: #f1f5f9; padding: 15px; border-radius: 12px; margin-top: 10px; }
-        .report-label { font-weight: 800; font-size: 0.75rem; color: var(--accent); margin-bottom: 5px; }
-        .report-value { font-size: 0.85rem; line-height: 1.5; color: var(--text); }
+        .badge { padding: 4px 10px; border-radius: 6px; font-size: 0.7rem; font-weight: 800; color: white; }
+        .photo-thumb { width: 60px; height: 60px; border-radius: 8px; object-fit: cover; margin-top: 10px; border: 1px solid #eee; }
+        .media-box { width: 100%; border-radius: 12px; margin-top: 10px; border: 1px solid #eee; overflow: hidden; background: #f1f5f9; position: relative; min-height: 150px; display: flex; align-items: center; justify-content: center; }
+        .media-box img { width: 100%; height: auto; display: block; }
+        .diagnostic-info { background: #fee2e2; border: 1px dashed #ef4444; padding: 10px; border-radius: 8px; font-size: 0.7rem; margin-bottom: 15px; color: #b91c1c; }
     </style>
 </head>
 <body>
-
     <div class="mobile-container">
         <div class="header">
             <img src="/static/logo.png" alt="WhiteOn">
-            <div style="font-size: 0.7rem; margin-top: 5px; opacity: 0.8;">지사 매니저용 포털</div>
+            <div style="display:flex; align-items:center; gap:10px;">
+                <div id="header-user-name" class="user-badge" onclick="app.toggleDiagnostic()" style="cursor:pointer;"></div>
+                <i id="btn-my-info" class="fas fa-cog" style="cursor:pointer; display:none;" onclick="app.showPage('myinfo')"></i>
+            </div>
         </div>
-
         <div class="content">
-            <!-- 1. 로그인 -->
             <div id="page-login" class="page active">
-                <div style="text-align: center; margin: 40px 0;">
-                    <i class="fas fa-user-shield" style="font-size: 3rem; color: var(--accent);"></i>
-                    <h2 style="margin-top:20px; font-size:1.5rem;">매니저 로그인</h2>
-                </div>
-                <div class="card">
-                    <div class="input-group">
-                        <label>지사 전화번호</label>
-                        <input type="text" id="login-phone" placeholder="'-' 제외 입력">
-                    </div>
-                    <button class="btn btn-primary" onclick="app.login()">매니저 인증</button>
-                    <button class="btn btn-secondary" onclick="app.showPage('signup')">신규 지사 등록신청</button>
+                <div style="text-align:center; margin:40px 0;"><i class="fas fa-user-shield" style="font-size:3rem; color:var(--accent);"></i><h2>매니저 로그인</h2></div>
+                <div class="card" style="border:none;">
+                    <div class="input-group"><label>전화번호</label><input type="text" id="login-phone" placeholder="'-' 제외 입력"><button class="btn-inline" onclick="app.sendOTP('login')">인증번호</button></div>
+                    <div id="otp-group-login" class="input-group" style="display:none;"><label>인증번호</label><input type="text" id="login-otp" placeholder="숫자 6자리 입력"></div>
+                    <button class="btn btn-primary" onclick="app.login()" style="margin-top:10px;">로그인</button>
+                    <button class="btn" style="background:none; color:var(--text-light); margin-top:10px; font-size:0.85rem;" onclick="app.showPage('signup')">지사 등록신청</button>
                 </div>
             </div>
-
-            <!-- 2. 지사 가입 신청 -->
             <div id="page-signup" class="page">
-                <h2>🏢 신규 지사 가입 신청</h2>
-                <div class="card">
-                    <div class="input-group"><label>지사명</label><input type="text" id="reg-name" placeholder="예: 화이트온 양주지사"></div>
-                    <div class="input-group"><label>지역 코드</label><input type="text" id="reg-region" placeholder="예: GYEONGGI"></div>
-                    <div class="input-group"><label>매니저 연락처</label><input type="text" id="reg-phone" placeholder="로그인용 번호"></div>
-                    <button class="btn btn-primary" onclick="app.register()">가입 신청하기</button>
-                    <button class="btn btn-secondary" onclick="app.showPage('login')">이전으로</button>
+                <h2>🏢 신규 지사 등록</h2>
+                <div class="card" style="border:none;">
+                    <div class="input-group"><label>지사명</label><input type="text" id="reg-name" placeholder="예: 화이트온 수원지사"></div>
+                    <div class="input-group"><label>활동 지역 (광역)</label><input type="text" id="reg-region" placeholder="예: GYEONGGI"></div>
+                    <div class="input-group"><label>지사 주소 검색</label><input type="text" id="reg-address" readonly onclick="app.searchAddress()"><button class="btn-inline" onclick="app.searchAddress()">주소 찾기</button></div>
+                    <div class="input-group"><label>상세 주소</label><input type="text" id="reg-address-detail" placeholder="상세 주소 입력"></div>
+                    <div class="input-group"><label>연락처</label><input type="text" id="reg-phone" placeholder="'-' 제외 입력"><button class="btn-inline" onclick="app.sendOTP('signup')">인증번호</button></div>
+                    <div id="otp-group-signup" class="input-group" style="display:none;"><label>인증번호</label><input type="text" id="reg-otp" placeholder="숫자 6자리 입력"></div>
+                    <button class="btn btn-primary" onclick="app.register()" style="margin-top:10px;">지사 등록 완료</button>
+                    <button class="btn btn-secondary" onclick="app.showPage('login')" style="background:none; font-size:0.85rem; color:var(--text-light);">취소하고 이전으로</button>
                 </div>
             </div>
-
-            <!-- 3. 승인 대기 -->
-            <div id="page-waiting" class="page">
-                <div style="text-align: center; margin-top: 60px;">
-                    <i class="fas fa-user-clock" style="font-size: 4rem; color: var(--warning);"></i>
-                    <h2 style="margin-top:20px;">본사 승인 대기 중</h2>
-                    <p style="color: var(--text-light); font-size:0.9rem;">지사 가입 승인 후 업무를 시작할 수 있습니다.</p>
-                    <button class="btn btn-secondary" onclick="app.logout()">로그인 화면으로</button>
+            <div id="page-reg-success" class="page">
+                <div style="text-align:center; margin-top:60px;">
+                    <i class="fas fa-paper-plane" style="font-size:4rem; color:var(--accent);"></i>
+                    <h2 style="margin-top:20px;">신청 완료!</h2>
+                    <p style="color:var(--text-light); line-height:1.6;">지사 등록 신청이 완료되었습니다.<br>본사 승인 완료 후 업무 시작이 가능합니다.</p>
+                    <button class="btn btn-primary" onclick="app.showPage('login')" style="margin-top:30px;">확인 (로그인 화면으로)</button>
                 </div>
             </div>
-
-            <!-- 4. 할당된 작업 (메인) -->
+            <div id="page-waiting" class="page"><div style="text-align:center; margin-top:60px;"><i class="fas fa-clock" style="font-size:4rem; color:var(--warning);"></i><h2>승인 대기 중</h2><button class="btn btn-secondary" onclick="app.logout()">이전으로</button></div></div>
             <div id="page-assigned" class="page">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                    <h2 style="margin:0;">할당된 수리</h2>
-                    <button onclick="app.loadData()" style="background:none; border:none; color:var(--accent);"><i class="fas fa-sync-alt"></i></button>
-                </div>
+                <h2>지역 내 할당 대기</h2>
+                <div id="diagnostic-box" class="diagnostic-info" style="display:none;"></div>
                 <div id="assigned-list"></div>
             </div>
-
-            <!-- 5. 진행중인 작업 -->
-            <div id="page-progress" class="page">
-                <h2>🛠️ 수리 진행 현황</h2>
-                <div id="progress-list"></div>
-            </div>
-
-            <!-- 6. 완료 내역 (History) -->
-            <div id="page-history" class="page">
-                <h2>📜 과거 수리 완료 내역</h2>
-                <div id="history-list"></div>
-            </div>
-
-            <!-- 7. 수리 리포트 작성 -->
-            <div id="page-report" class="page">
-                <h2 id="report-title">수리 리포트 작성</h2>
+            <div id="page-progress" class="page"><h2>수리 진행 중</h2><div id="progress-list"></div></div>
+            <div id="page-history" class="page"><h2>완료 내역</h2><div id="history-list"></div></div>
+            <div id="page-myinfo" class="page">
+                <h2>⚙️ 내 정보 수정</h2>
                 <div class="card">
-                    <div class="input-group"><label>문제점 분석</label><textarea id="rep-problem" rows="3" placeholder="발견된 문제점을 적어주세요"></textarea></div>
-                    <div class="input-group"><label>상세 분석내용</label><textarea id="rep-analysis" rows="3" placeholder="원인 분석 내용을 적어주세요"></textarea></div>
-                    <div class="input-group"><label>조치 및 해결</label><textarea id="rep-solution" rows="3" placeholder="어떻게 해결했는지 적어주세요"></textarea></div>
-                    <div class="input-group"><label>수리 완료 사진</label><input type="file" id="rep-file" accept="image/*" capture="environment"></div>
-                    <div class="input-group"><label>최종 청구 금액 (원)</label><input type="number" id="rep-amount" placeholder="예: 50000"></div>
-                    <button class="btn btn-primary" onclick="app.submitReport()">결제 요청 및 완료</button>
+                    <div class="input-group"><label>지사명</label><input type="text" id="my-name" disabled></div>
+                    <div class="input-group"><label>지사 주소 검색</label><input type="text" id="my-address" readonly onclick="app.searchAddress('my')"><button class="btn-inline" onclick="app.searchAddress('my')">주소 찾기</button></div>
+                    <div class="input-group"><label>상세 주소</label><input type="text" id="my-address-detail" placeholder="상세 주소 입력"></div>
+                    <button class="btn btn-primary" onclick="app.saveMyInfo()">수정 사항 저장</button>
+                    <button class="btn btn-secondary" onclick="app.showPage('assigned')">취소</button>
+                </div>
+            </div>
+            <div id="page-report" class="page">
+                <h2>🛠️ 리포트 작성</h2>
+                <div class="card" style="background:#f0f9ff; border:1px solid var(--accent);">
+                    <div style="font-size:0.8rem; color:var(--accent); font-weight:700; margin-bottom:5px;" id="report-info">접수번호: #8A2F12 | 날짜: 2026-04-26</div>
+                    <div style="font-size:1.1rem; font-weight:800; margin-bottom:10px;" id="report-res-name">식당명</div>
+                </div>
+                <div class="card">
+                    <div class="input-group"><label>문제점 (무엇이 문제인가요?)</label><textarea id="rep-problem" rows="3"></textarea></div>
+                    <div class="input-group"><label>해결책 (어떻게 수리했나요?)</label><textarea id="rep-solution" rows="3"></textarea></div>
+                    <div class="input-group"><label>청구 금액 (세금이 포함된 금액)</label><input type="number" id="rep-amount"></div>
+                    <div class="input-group"><label>수리 완료 사진</label><input type="file" id="rep-file"></div>
+                    <button class="btn btn-primary" onclick="app.submitReport()">리포트 전송 및 결제요청</button>
                     <button class="btn btn-secondary" onclick="app.showPage('progress')">취소</button>
                 </div>
             </div>
         </div>
-
-        <!-- 하단 내비게이션 -->
-        <div id="manager-nav" class="nav-bar" style="display: none;">
-            <div class="nav-item active" onclick="app.switchTab('assigned')"><i class="fas fa-tasks"></i><span>할당됨</span></div>
-            <div class="nav-item" onclick="app.switchTab('progress')"><i class="fas fa-wrench"></i><span>진행중</span></div>
-            <div class="nav-item" onclick="app.switchTab('history')"><i class="fas fa-check-double"></i><span>완료내역</span></div>
+        <div id="manager-nav" class="nav-bar" style="display:none;">
+            <div class="nav-item active" onclick="app.switchTab('assigned')"><i class="fas fa-tasks"></i><span>할당</span></div>
+            <div class="nav-item" onclick="app.switchTab('progress')"><i class="fas fa-wrench"></i><span>진행</span></div>
+            <div class="nav-item" onclick="app.switchTab('history')"><i class="fas fa-check-double"></i><span>완료</span></div>
             <div class="nav-item" onclick="app.logout()"><i class="fas fa-sign-out-alt"></i><span>로그아웃</span></div>
         </div>
     </div>
-
     <script>
         const API_BASE = "/api/v1";
         const app = {
-            branch: null,
-            currentRequestId: null,
-
-            showPage(id) {
-                document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-                document.getElementById('page-' + id).classList.add('active');
-                document.getElementById('manager-nav').style.display = (['login', 'signup', 'waiting'].includes(id)) ? 'none' : 'flex';
+            branch: null, generatedOTP: null, currentRequest: null,
+            showPage(id) { 
+                document.querySelectorAll('.page').forEach(p => p.classList.remove('active')); 
+                document.getElementById('page-' + id).classList.add('active'); 
+                const isMain = !['login','signup','waiting','reg-success'].includes(id);
+                document.getElementById('manager-nav').style.display = isMain ? 'flex' : 'none'; 
+                document.getElementById('header-user-name').style.display = isMain ? 'block' : 'none';
+                document.getElementById('btn-my-info').style.display = isMain ? 'block' : 'none';
+                if(id === 'myinfo') this.loadMyInfoFields();
             },
-
-            switchTab(tabId) {
-                document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-                event.currentTarget.classList.add('active');
-                this.showPage(tabId);
-                this.loadData();
-            },
-
+            searchAddress(type) { new daum.Postcode({ oncomplete: (data) => { if(type==='my') document.getElementById('my-address').value = data.address; else document.getElementById('reg-address').value = data.address; if(type==='my') document.getElementById('my-address-detail').focus(); else document.getElementById('reg-address-detail').focus(); } }).open(); },
+            sendOTP(type) { this.generatedOTP = "111111"; alert(`테스트용 인증번호: [${this.generatedOTP}]`); document.getElementById(`otp-group-${type}`).style.display = 'block'; },
             async login() {
                 const phone = document.getElementById('login-phone').value;
-                const res = await fetch(`${API_BASE}/branches/`);
-                const branches = await res.json();
-                const found = branches.find(b => b.manager_phone === phone);
-                if(found) {
-                    this.branch = found;
-                    if(!found.is_approved) return this.showPage('waiting');
-                    this.showPage('assigned');
-                    this.loadData();
-                } else { alert('등록되지 않은 지사입니다.'); }
+                const res = await fetch(`${API_BASE}/branches/`); const data = await res.json();
+                const found = data.find(b => b.manager_phone === phone);
+                if(found) { 
+                    this.branch = found; 
+                    document.getElementById('header-user-name').innerText = found.name + "님";
+                    if(!found.is_approved) return this.showPage('waiting'); 
+                    this.showPage('assigned'); this.loadData(); 
+                } else alert('미등록 지사');
             },
-
             async register() {
-                const name = document.getElementById('reg-name').value;
-                const region = document.getElementById('reg-region').value;
-                const phone = document.getElementById('reg-phone').value;
-                if(!name || !region || !phone) return alert('모든 항목을 입력하세요.');
-                await fetch(`${API_BASE}/branches/`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ name, region_code: region, manager_phone: phone, commission_rate: 10 })
-                });
-                alert('지사 가입 신청 완료! 본사 승인 대기');
-                this.showPage('login');
+                const phone = document.getElementById('reg-phone').value; const name = document.getElementById('reg-name').value;
+                const addr = document.getElementById('reg-address').value; const detail = document.getElementById('reg-address-detail').value;
+                if(!name || !phone || !addr || !detail) return alert('이름, 핸드폰 번호, 주소 및 상세 주소는 필수 입력 사항입니다.');
+                const res = await fetch(`${API_BASE}/branches/`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, manager_phone:phone, region_code:document.getElementById('reg-region').value, address: `${addr} ${detail}`, commission_rate:10}) });
+                if(res.ok) this.showPage('reg-success'); else { const err = await res.json(); alert(err.detail || '지사 등록 실패'); }
             },
-
+            loadMyInfoFields() {
+                document.getElementById('my-name').value = this.branch.name;
+                const addrParts = (this.branch.address || "").split('  ');
+                document.getElementById('my-address').value = addrParts[0] || "";
+                document.getElementById('my-address-detail').value = addrParts[1] || "";
+            },
+            async saveMyInfo() {
+                const addr = document.getElementById('my-address').value;
+                const detail = document.getElementById('my-address-detail').value;
+                const res = await fetch(`${API_BASE}/branches/${this.branch.id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({address: `${addr}  ${detail}`}) });
+                if(res.ok) { this.branch = await res.json(); alert('정보가 성공적으로 수정되었습니다.'); this.showPage('assigned'); } else alert('저장 실패');
+            },
+            switchTab(id) { document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active')); event.currentTarget.classList.add('active'); this.showPage(id); this.loadData(); },
+            getServiceRegion() { 
+                if(!this.branch || !this.branch.address) return ""; 
+                const parts = this.branch.address.split(' ').filter(p => p.length > 0);
+                // 주소 구성 요소 중 '시', '군', '구'로 끝나는 첫 번째 단어를 찾아 키워드로 사용
+                for (let part of parts) {
+                    if (part.endsWith('시') || part.endsWith('군') || part.endsWith('구')) {
+                        return part.replace('시', '').replace('군', '').replace('구', '');
+                    }
+                }
+                // 못 찾을 경우 두 번째 단어를 시도 (보통 경기도 의정부시... 에서 두 번째)
+                if (parts.length >= 2) return parts[1].replace('시', '').replace('군', '').replace('구', '');
+                return parts[0] ? parts[0].replace('시', '').replace('군', '').replace('구', '') : ""; 
+            },
+            toggleDiagnostic() {
+                const diagBox = document.getElementById('diagnostic-box');
+                if(diagBox) diagBox.style.display = diagBox.style.display === 'none' ? 'block' : 'none';
+            },
             async loadData() {
-                const res = await fetch(`${API_BASE}/requests/?assigned_branch_id=${this.branch.id}`);
+                const region = this.getServiceRegion();
+                const diagBox = document.getElementById('diagnostic-box');
+                if(diagBox) {
+                    diagBox.innerHTML = `🔍 <b>진단 모드:</b><br>지사 주소: ${this.branch.address || '없음'}<br>매칭 키워드: <span style="color:var(--danger); font-weight:800;">"${region}"</span><br><span style="font-size:0.6rem;">* 식당 주소에 이 단어가 포함되어야 매칭됩니다.</span>`;
+                }
+                const res = await fetch(`${API_BASE}/requests/?assigned_branch_id=${this.branch.id}&unassigned_region=${encodeURIComponent(region)}`);
                 const data = await res.json();
-                
-                // 할당됨 (PENDING)
                 const assigned = data.filter(r => r.status === 'PENDING').reverse();
-                document.getElementById('assigned-list').innerHTML = assigned.map(r => `
-                    <div class="card">
-                        <div style="font-weight:700; font-size:1.1rem; color:var(--accent);">${r.restaurant_name || '식당'}</div>
-                        <div style="margin:10px 0; font-size:0.9rem;">${r.category}</div>
-                        <button class="btn btn-primary" onclick="app.startRepair('${r.id}')">수리 시작하기</button>
-                    </div>
-                `).join('') || '<p style="text-align:center; color:#94a3b8;">할당된 작업이 없습니다.</p>';
-
-                // 진행중 (IN_PROGRESS, PAYMENT_REQUESTED)
-                const progress = data.filter(r => r.status === 'IN_PROGRESS' || r.status === 'PAYMENT_REQUESTED').reverse();
-                document.getElementById('progress-list').innerHTML = progress.map(r => `
-                    <div class="card">
-                        <div style="display:flex; justify-content:space-between;">
-                            <span style="font-weight:700;">${r.restaurant_name || '식당'}</span>
-                            <span class="badge ${r.status==='IN_PROGRESS'?'badge-progress':'badge-pending'}">${r.status==='IN_PROGRESS'?'수리중':'결제대기'}</span>
+                document.getElementById('assigned-list').innerHTML = assigned.map(r => {
+                    const orderNo = r.id.split('-')[0].toUpperCase();
+                    const reqDate = new Date(r.created_at).toLocaleDateString();
+                    const isClaimable = !r.assigned_branch_id;
+                    return `
+                        <div class="card" style="${isClaimable ? 'border: 2px solid var(--accent);' : ''}">
+                            <div style="font-size:0.75rem; color:var(--text-light); margin-bottom:5px;">접수일: ${reqDate} | 번호: #${orderNo}</div>
+                            ${isClaimable ? `<div style="color:var(--accent); font-weight:800; font-size:0.7rem; margin-bottom:5px;">📢 새로운 지역 요청!</div>` : ''}
+                            <div style="font-weight:700;">${r.restaurant_name}</div>
+                            <div style="font-size:0.85rem; color:var(--text-light); margin-bottom:5px;">${r.restaurant ? r.restaurant.address : (r.address || '-')}</div>
+                            <div style="font-size:0.85rem; color:var(--accent); font-weight:700;">${r.category}</div>
+                            ${r.media && r.media.length > 0 ? `<img src="${r.media[0].file_url}" class="photo-thumb" onclick="window.open('${r.media[0].file_url}')">` : ''}
+                            <button class="btn btn-primary" style="margin-top:10px; padding:10px;" onclick="app.startRepair('${r.id}')">${isClaimable ? '수리 접수하기' : '수리 계속하기'}</button>
                         </div>
-                        <div style="margin:10px 0; font-size:0.85rem; color:var(--text-light);">${r.category}</div>
-                        ${r.status === 'IN_PROGRESS' ? `<button class="btn btn-primary" onclick="app.openReport('${r.id}')">리포트 작성 / 완료</button>` : `<div style="text-align:center; color:var(--success); font-weight:700; font-size:0.8rem;">사장님 결제를 기다리는 중입니다.</div>`}
-                    </div>
-                `).join('') || '<p style="text-align:center; color:#94a3b8;">진행 중인 작업이 없습니다.</p>';
-
-                // 완료내역 (COMPLETED)
+                    `;
+                }).join('') || `<p style="text-align:center; padding:20px; color:var(--text-light);">현재 <span style="color:var(--accent); font-weight:800;">"${region}"</span> 지역의 새로운 요청이 없습니다.<br><br><small>식당이 주소를 정확히 입력했는지 확인해 주세요.</small></p>`;
+                const progress = data.filter(r => r.status === 'IN_PROGRESS' || r.status === 'PAYMENT_REQUESTED').reverse();
+                document.getElementById('progress-list').innerHTML = progress.map(r => {
+                    const orderNo = r.id.split('-')[0].toUpperCase();
+                    const reqDate = new Date(r.created_at);
+                    const meta = r.metadata || {};
+                    const isWait = r.status === 'PAYMENT_REQUESTED';
+                    const incidentPhoto = r.media && r.media.length > 0 ? r.media[0].file_url : null;
+                    return `
+                        <div class="card" style="border-left-color:${isWait ? 'var(--wait)' : 'var(--warning)'};" onclick="this.classList.toggle('expanded')">
+                            <div style="font-size:0.75rem; color:var(--text-light); margin-bottom:5px;">접수일: ${reqDate.toLocaleDateString()} | 번호: #${orderNo}</div>
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <b>${r.restaurant_name}</b> 
+                                <span class="badge" style="background:${isWait ? '#3b82f6' : '#f59e0b'}">${isWait ? '결제대기' : '수리중'}</span>
+                            </div>
+                            <div class="detail-view">
+                                <div style="margin-bottom:10px;"><b>현재 상태:</b> ${isWait ? '<span style="color:var(--accent); font-weight:700;">청구 완료 (고객 결제 대기 중)</span>' : '<span style="color:var(--warning); font-weight:700;">수리 진행 중</span>'}</div>
+                                ${isWait ? `
+                                    <div style="margin-bottom:10px; padding:12px; background:#f0f7ff; border-radius:12px;">
+                                        <div style="font-size:0.7rem; color:var(--text-light);">청구 금액 및 날짜</div>
+                                        <div style="font-weight:800; font-size:1.1rem; color:var(--accent);">₩${(meta.requested_amount||0).toLocaleString()}원</div>
+                                        <div style="font-size:0.7rem; color:var(--text-light); margin-top:4px;">요청일: ${new Date(r.updated_at).toLocaleString()}</div>
+                                    </div>
+                                    <div style="margin-bottom:10px;"><b>보고된 문제:</b><br>${meta.problem || '-'}</div>
+                                    <div style="margin-bottom:10px;"><b>조치 내용:</b><br>${meta.solution || '-'}</div>
+                                ` : `
+                                    <div style="margin-bottom:10px;"><b>고장 카테고리:</b> ${r.category}</div>
+                                    <div style="margin-bottom:10px;"><b>고객 설명:</b><br>${r.description || '-'}</div>
+                                    ${incidentPhoto ? `<div class="media-box"><img src="${incidentPhoto}" onclick="event.stopPropagation(); window.open('${incidentPhoto}')"></div>` : ''}
+                                `}
+                                ${r.status === 'IN_PROGRESS' ? `<button class="btn btn-primary" style="margin-top:10px; padding:10px;" onclick="event.stopPropagation(); app.openReport('${r.id}', '${r.restaurant_name}', '${orderNo}', '${r.created_at}')">리포트 작성하기</button>` : ''}
+                            </div>
+                        </div>
+                    `;
+                }).join('') || '<p style="text-align:center;">진행 중인 작업이 없습니다.</p>';
                 const history = data.filter(r => r.status === 'COMPLETED').reverse();
                 document.getElementById('history-list').innerHTML = history.map(r => {
-                    const m = r.metadata || {};
+                    const orderNo = r.id.split('-')[0].toUpperCase();
+                    const reqDate = new Date(r.created_at);
+                    const meta = r.metadata || {};
+                    const completionPhoto = r.media && r.media.length > 1 ? r.media[r.media.length-1].file_url : null;
                     return `
-                    <div class="card">
-                        <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
-                            <span style="font-weight:800;">${r.restaurant_name}</span>
-                            <span style="font-size:0.75rem; color:var(--text-light);">${new Date(r.completed_at).toLocaleDateString()}</span>
-                        </div>
-                        <div class="report-box">
-                            <div class="report-label">문제점</div><div class="report-value">${m.problem || '-'}</div>
-                            <div class="report-label">해결</div><div class="report-value">${m.solution || '-'}</div>
-                            <div class="report-label">금액</div><div class="report-value" style="color:var(--accent); font-weight:700;">₩${(m.requested_amount||0).toLocaleString()}</div>
-                        </div>
-                    </div>`;
-                }).join('') || '<p style="text-align:center; color:#94a3b8;">완료 내역이 없습니다.</p>';
+                        <div class="card" style="border-left-color:var(--success);" onclick="this.classList.toggle('expanded')">
+                            <div style="font-size:0.75rem; color:var(--text-light); margin-bottom:5px;">완료일: ${reqDate.toLocaleDateString()} | 번호: #${orderNo}</div>
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <b>${r.restaurant_name}</b> 
+                                <span class="badge" style="background:var(--success)">완료</span>
+                            </div>
+                            <div class="detail-view">
+                                <div style="margin-bottom:10px; padding:12px; background:#f0fff4; border-radius:12px; font-weight:800; color:var(--success); font-size:1.1rem;">₩${(meta.requested_amount||0).toLocaleString()}원</div>
+                                <div style="margin-bottom:10px;"><b>문제점:</b><br>${meta.problem || r.description || '-'}</div>
+                                <div style="margin-bottom:10px;"><b>해결책:</b><br><span style="color:var(--accent); font-weight:700;">${meta.solution || '-'}</span></div>
+                                ${completionPhoto ? `<div class="media-box"><img src="${completionPhoto}" onclick="event.stopPropagation(); window.open('${completionPhoto}')"></div>` : ''}
+                            </div>
+                        </div>`;
+                }).join('') || '<p style="text-align:center;">완료된 내역이 없습니다.</p>';
             },
-
-            async startRepair(id) {
-                await fetch(`${API_BASE}/requests/${id}`, {
-                    method: 'PATCH',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ status: 'IN_PROGRESS', assigned_at: new Date().toISOString() })
-                });
-                this.loadData();
-                this.showPage('progress');
+            async startRepair(id) { 
+                await fetch(`${API_BASE}/requests/${id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status:'IN_PROGRESS', assigned_branch_id: this.branch.id}) }); 
+                this.loadData(); this.showPage('progress'); 
             },
-
-            openReport(id) {
-                this.currentRequestId = id;
-                this.showPage('report');
+            openReport(id, resName, orderNo, date) { 
+                this.currentRequest = { id, resName, orderNo, date };
+                document.getElementById('report-res-name').innerText = resName;
+                document.getElementById('report-info').innerText = `접수번호: #${orderNo} | 접수일: ${new Date(date).toLocaleDateString()}`;
+                this.showPage('report'); 
             },
-
             async submitReport() {
-                const problem = document.getElementById('rep-problem').value;
-                const analysis = document.getElementById('rep-analysis').value;
-                const solution = document.getElementById('rep-solution').value;
-                const amount = document.getElementById('rep-amount').value;
+                const prob = document.getElementById('rep-problem').value;
+                const sol = document.getElementById('rep-solution').value;
+                const amt = document.getElementById('rep-amount').value;
                 const file = document.getElementById('rep-file').files[0];
-
-                if(!problem || !analysis || !solution || !amount) return alert('모든 리포트 항목과 금액을 기입해주세요.');
-
-                const metadata = { problem, analysis, solution, requested_amount: parseInt(amount) };
                 
-                await fetch(`${API_BASE}/requests/${this.currentRequestId}`, {
-                    method: 'PATCH',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ status: 'PAYMENT_REQUESTED', metadata_json: metadata })
-                });
-
-                if(file) {
-                    const formData = new FormData();
-                    formData.append('file', file);
-                    await fetch(`${API_BASE}/requests/${this.currentRequestId}/media`, { method: 'POST', body: formData });
+                if(!prob || !sol || !amt || !file) {
+                    return alert('리포트의 모든 항목(문제점, 해결책, 금액, 사진)을 입력하고 첨부해 주세요. 완료 처리를 위해 필수입니다.');
                 }
-
-                alert('수리 리포트 전송 및 결제 요청이 완료되었습니다.');
-                this.loadData();
-                this.showPage('progress');
+                
+                const metadata = { problem: prob, solution: sol, requested_amount: parseInt(amt) };
+                const res = await fetch(`${API_BASE}/requests/${this.currentRequest.id}`, { 
+                    method:'PATCH', 
+                    headers:{'Content-Type':'application/json'}, 
+                    body:JSON.stringify({status:'PAYMENT_REQUESTED', metadata: metadata}) 
+                });
+                
+                if(res.ok) {
+                    const formData = new FormData(); 
+                    formData.append('file', file); 
+                    await fetch(`${API_BASE}/requests/${this.currentRequest.id}/media`, { method: 'POST', body: formData });
+                    alert('리포트 전송 및 결제 요청이 완료되었습니다.'); 
+                    this.showPage('progress'); 
+                    this.loadData();
+                } else {
+                    alert('리포트 전송 실패. 다시 시도해 주세요.');
+                }
             },
-
             logout() { this.branch = null; this.showPage('login'); }
         };
     </script>

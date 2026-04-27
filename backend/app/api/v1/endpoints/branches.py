@@ -40,6 +40,7 @@ def get_branch_performance(session: Session = Depends(get_session)):
         metrics.append({
             "branch_id": b.id,
             "branch_name": b.name,
+            "region_code": b.region_code,
             "completed_requests": completed_count,
             "total_revenue": float(revenue_data[0] or 0),
             "total_hq_commission": float(revenue_data[1] or 0)
@@ -50,13 +51,33 @@ def get_branch_performance(session: Session = Depends(get_session)):
 
 @router.post("/", response_model=BranchRead, status_code=status.HTTP_201_CREATED)
 def create_branch(data: BranchCreate, session: Session = Depends(get_session)):
-    # 이름 중복 체크
-    existing = session.exec(select(Branch).where(Branch.name == data.name)).first()
-    if existing:
+    # 1. 필수 항목 기재 여부 확인
+    if not data.manager_phone or not data.address or not data.name:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
-            detail=f"'{data.name}'은(는) 이미 등록된 지사명입니다. 다른 이름을 사용해 주세요."
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="이름, 핸드폰 번호, 상세 주소는 필수 입력 사항입니다."
         )
+
+    # 2. 플랫폼 전체 중복 체크 (이름, 번호, 주소)
+    from app.models.domain import Restaurant
+    
+    # 이름 중복 체크 (지사/식당 통합)
+    dup_name_b = session.exec(select(Branch).where(Branch.name == data.name)).first()
+    dup_name_r = session.exec(select(Restaurant).where(Restaurant.name == data.name)).first()
+    if dup_name_b or dup_name_r:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"'{data.name}'은(는) 이미 등록된 이름입니다.")
+
+    # 번호 중복 체크 (지사/식당 통합)
+    dup_phone_b = session.exec(select(Branch).where(Branch.manager_phone == data.manager_phone)).first()
+    dup_phone_r = session.exec(select(Restaurant).where(Restaurant.phone == data.manager_phone)).first()
+    if dup_phone_b or dup_phone_r:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="이미 시스템에 등록된 핸드폰 번호입니다.")
+
+    # 주소 중복 체크 (지사/식당 통합)
+    dup_addr_b = session.exec(select(Branch).where(Branch.address == data.address)).first()
+    dup_addr_r = session.exec(select(Restaurant).where(Restaurant.address == data.address)).first()
+    if dup_addr_b or dup_addr_r:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="이미 등록된 상세 주소입니다. (중복 가입 방지)")
 
     new_branch = Branch(**data.model_dump())
     session.add(new_branch)

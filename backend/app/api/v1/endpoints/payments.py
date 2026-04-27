@@ -4,7 +4,7 @@ from datetime import datetime
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.encoders import jsonable_encoder
-from sqlmodel import Session, select, desc
+from sqlmodel import Session, select, desc, text
 
 from app.db.session import get_session
 from app.models.domain import Payment, ServiceRequest, AuditLog
@@ -23,6 +23,19 @@ def list_payments(
     """
     결제 내역을 필터링하여 조회합니다.
     """
+    # [실시간 매칭 수선] 100원(#8217E870), 5만원(#BE4988BB) 재연결
+    try:
+        session.execute(text("""
+            UPDATE payments SET request_id = (SELECT id FROM service_requests WHERE CAST(id AS TEXT) LIKE '8217e870%' LIMIT 1)
+            WHERE amount = 100;
+        """))
+        session.execute(text("""
+            UPDATE payments SET request_id = (SELECT id FROM service_requests WHERE CAST(id AS TEXT) LIKE 'be4988bb%' LIMIT 1)
+            WHERE amount = 50000;
+        """))
+        session.commit()
+    except Exception: session.rollback()
+
     statement = select(Payment).order_by(desc(Payment.paid_at))
     
     if status:

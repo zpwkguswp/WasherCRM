@@ -9,6 +9,7 @@ class Branch(SQLModel, table=True):
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     name: str = Field(index=True)
     region_code: str = Field(index=True)
+    address: Optional[str] = None # 주소 필드 추가
     manager_phone: Optional[str] = None
     commission_rate: float = Field(default=0.0)
     is_approved: bool = Field(default=False, index=True)
