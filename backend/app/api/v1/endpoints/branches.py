@@ -50,24 +50,39 @@ def get_branch_performance(session: Session = Depends(get_session)):
         elif total_rev >= 10000000:
             tier = "SILVER"; new_rate = 8.0; goal = 20000000
             
-        # DB 업데이트 (연동성 확보)
-        if b.tier != tier or b.commission_rate != new_rate:
-            b.tier = tier
-            b.commission_rate = new_rate
-            session.add(b)
-            session.commit()
-            
-        progress = min(100, int((total_rev / goal) * 100)) if total_rev > 0 and goal > 0 else 0
+        # 만족도 평균 계산 보정 (더 견고한 데이터 추출)
+        all_completed = session.exec(
+            select(ServiceRequest)
+            .where(ServiceRequest.assigned_branch_id == b.id)
+            .where(ServiceRequest.status == "COMPLETED")
+        ).all()
         
+        ratings = []
+        for r in all_completed:
+            meta = r.metadata_json
+            if meta and isinstance(meta, dict) and "survey" in meta:
+                s = meta["survey"]
+                if isinstance(s, dict) and "rating" in s:
+                    try:
+                        val = float(s["rating"])
+                        if val > 0: ratings.append(val)
+                    except (ValueError, TypeError): continue
+        
+        avg_rating = round(sum(ratings) / len(ratings), 1) if ratings else 0.0
+        
+        # 목표 달성률 계산
+        progress = round((total_rev / goal) * 100, 1) if goal > 0 else 0.0
+
         metrics.append({
             "branch_id": b.id,
             "branch_name": b.name,
             "region_code": b.region_code,
             "tier": tier,
             "progress": progress,
-            "completed_requests": completed_count,
+            "completed_requests": len(all_completed),
             "total_revenue": total_rev,
-            "total_hq_commission": float(revenue_data[1] or 0)
+            "total_hq_commission": float(revenue_data[1] or 0),
+            "avg_satisfaction": avg_rating
         })
         
     # 실적(매출액) 순으로 정렬해서 반환
@@ -185,14 +200,20 @@ def update_branch(branch_id: UUID, data: BranchUpdate, session: Session = Depend
     if not branch:
         raise HTTPException(status_code=404, detail="Branch not found")
         
-    # 이름 변경 시 중복 체크 (자신은 제외)
+    # 이름 중복 체크 (자신은 제외)
     if data.name and data.name != branch.name:
         existing = session.exec(select(Branch).where(Branch.name == data.name, Branch.id != branch_id)).first()
-        if existing:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, 
-                detail=f"'{data.name}'은(는) 이미 다른 지사에서 사용 중인 이름입니다."
-            )
+        if existing: raise HTTPException(status_code=400, detail=f"'{data.name}'은(는) 이미 등록된 지사명입니다.")
+
+    # 연락처 중복 체크
+    if data.manager_phone and data.manager_phone != branch.manager_phone:
+        existing = session.exec(select(Branch).where(Branch.manager_phone == data.manager_phone, Branch.id != branch_id)).first()
+        if existing: raise HTTPException(status_code=400, detail="이미 시스템에 등록된 연락처입니다.")
+
+    # 주소 중복 체크
+    if data.address and data.address != branch.address:
+        existing = session.exec(select(Branch).where(Branch.address == data.address, Branch.id != branch_id)).first()
+        if existing: raise HTTPException(status_code=400, detail="이미 등록된 지사 주소입니다.")
 
     old_data = branch.model_dump()
     update_data = data.model_dump(exclude_unset=True)

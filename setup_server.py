@@ -57,6 +57,10 @@ server {
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
     }
+
+    location /static/ {
+        alias /home/ubuntu/backend/app/static/;
+    }
 }
 EOF'
         """,
@@ -64,6 +68,7 @@ EOF'
         "sudo rm -f /etc/nginx/sites-enabled/default",
         "sudo chmod 755 /home/ubuntu",
         "sudo chmod -R 755 /home/ubuntu/www",
+        "sudo chmod -R 755 /home/ubuntu/backend/app/static",
         "sudo systemctl restart nginx",
         
         # 백엔드 가동 (이미 실행 중이면 종료 후 재시작)

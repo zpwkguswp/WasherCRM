@@ -35,9 +35,12 @@ class RequestRead(BaseModel):
     created_at: datetime
     assigned_at: Optional[datetime]
     completed_at: Optional[datetime]
-    # 프론트엔드 편의를 위한 지점명 추가
+    # 프론트엔드 편의를 위한 정보 추가
     restaurant_name: Optional[str] = None
+    restaurant_address: Optional[str] = None
+    restaurant_phone: Optional[str] = None
     branch_name: Optional[str] = None
+    branch_phone: Optional[str] = None
     media: List[MediaRead] = []
 
     @model_validator(mode="after")
@@ -46,14 +49,16 @@ class RequestRead(BaseModel):
         # self.restaurant, self.branch 필드가 스키마에 없으므로 context나 속성 확인 필요
         return self
 
-    # SQLModel 모델에서 데이터를 변환할 때 이름을 직접 주입하기 위한 helper
     @classmethod
     def from_db(cls, obj):
         data = cls.model_validate(obj)
         if hasattr(obj, "restaurant") and obj.restaurant:
             data.restaurant_name = obj.restaurant.name
+            data.restaurant_address = obj.restaurant.address
+            data.restaurant_phone = obj.restaurant.phone
         if hasattr(obj, "branch") and obj.branch:
             data.branch_name = obj.branch.name
+            data.branch_phone = obj.branch.manager_phone
         return data
 
     class Config:
