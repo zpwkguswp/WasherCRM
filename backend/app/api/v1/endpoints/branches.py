@@ -16,8 +16,8 @@ def get_branch_performance(session: Session = Depends(get_session)):
     """
     본사 관리자용: 각 지사별 실적(완료 건수, 매출액)을 집계합니다.
     """
-    # 1. 지사 목록 가져오기
-    branches = session.exec(select(Branch)).all()
+    # 1. 승인된 지사 목록만 가져오기
+    branches = session.exec(select(Branch).where(Branch.is_approved == True)).all()
     metrics = []
     
     for b in branches:
@@ -37,17 +37,41 @@ def get_branch_performance(session: Session = Depends(get_session)):
             .where(Settlement.branch_id == b.id)
         ).first()
         
+        total_rev = float(revenue_data[0] or 0)
+        
+        # 등급 및 수수료 자동 계산 (새로운 정책 반영)
+        tier = "BRONZE"
+        new_rate = 10.0
+        goal = 10000000
+        if total_rev >= 30000000:
+            tier = "DIAMOND"; new_rate = 5.0; goal = 30000000
+        elif total_rev >= 20000000:
+            tier = "GOLD"; new_rate = 6.0; goal = 30000000
+        elif total_rev >= 10000000:
+            tier = "SILVER"; new_rate = 8.0; goal = 20000000
+            
+        # DB 업데이트 (연동성 확보)
+        if b.tier != tier or b.commission_rate != new_rate:
+            b.tier = tier
+            b.commission_rate = new_rate
+            session.add(b)
+            session.commit()
+            
+        progress = min(100, int((total_rev / goal) * 100)) if total_rev > 0 and goal > 0 else 0
+        
         metrics.append({
             "branch_id": b.id,
             "branch_name": b.name,
             "region_code": b.region_code,
+            "tier": tier,
+            "progress": progress,
             "completed_requests": completed_count,
-            "total_revenue": float(revenue_data[0] or 0),
+            "total_revenue": total_rev,
             "total_hq_commission": float(revenue_data[1] or 0)
         })
         
-    # 실적(완료 건수) 순으로 정렬해서 반환
-    return sorted(metrics, key=lambda x: x["completed_requests"], reverse=True)
+    # 실적(매출액) 순으로 정렬해서 반환
+    return sorted(metrics, key=lambda x: x["total_revenue"], reverse=True)
 
 @router.post("/", response_model=BranchRead, status_code=status.HTTP_201_CREATED)
 def create_branch(data: BranchCreate, session: Session = Depends(get_session)):
@@ -109,7 +133,44 @@ def list_branches(
     if phone:
         statement = statement.where(Branch.manager_phone.contains(phone))
     
-    return session.exec(statement).all()
+    branches = session.exec(statement).all()
+    
+    # 자동 승급 로직 적용
+    for b in branches:
+        if not b.is_approved:
+            continue
+            
+        # 총 매출액 확인
+        from app.models.domain import Settlement
+        revenue_data = session.exec(
+            select(func.sum(Settlement.total_amount))
+            .where(Settlement.branch_id == b.id)
+        ).first()
+        total_rev = float(revenue_data or 0)
+        
+        # 등급 및 수수료 자동 업데이트 (새로운 정책 반영)
+        new_tier = "BRONZE"
+        new_rate = 10.0
+        if total_rev >= 30000000:
+            new_tier = "DIAMOND"
+            new_rate = 5.0
+        elif total_rev >= 20000000:
+            new_tier = "GOLD"
+            new_rate = 6.0
+        elif total_rev >= 10000000:
+            new_tier = "SILVER"
+            new_rate = 8.0
+            
+        if b.tier != new_tier:
+            b.tier = new_tier
+            b.commission_rate = new_rate
+            session.add(b)
+    
+    session.commit()
+    for b in branches:
+        session.refresh(b)
+        
+    return branches
 
 @router.get("/{branch_id}", response_model=BranchRead)
 def get_branch(branch_id: UUID, session: Session = Depends(get_session)):
@@ -155,18 +216,8 @@ def update_branch(branch_id: UUID, data: BranchUpdate, session: Session = Depend
     session.refresh(branch)
     return branch
 @router.delete("/{branch_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_branch(
-    branch_id: UUID, 
-    confirmation_code: str, 
-    session: Session = Depends(get_session)
-):
-    # 1. 안전 코드 확인
-    if confirmation_code != "DELETE_CONFIRM":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, 
-            detail="삭제 확인 코드가 일치하지 않습니다. ('DELETE_CONFIRM'을 입력하세요)"
-        )
-
+def delete_branch(branch_id: UUID, session: Session = Depends(get_session)):
+    # 관리자용이므로 확인 코드 없이 진행 (UI에서 컨펌 창 띄움)
     branch = session.get(Branch, branch_id)
     if not branch:
         raise HTTPException(status_code=404, detail="Branch not found")

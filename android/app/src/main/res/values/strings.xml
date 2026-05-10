@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">WasherCRM</string>
+    <string name="title_activity_main">WasherCRM</string>
+    <string name="package_name">com.washercrm.app</string>
+    <string name="custom_url_scheme">com.washercrm.app</string>
+</resources>

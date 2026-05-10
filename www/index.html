@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhiteOn | 사장님 플랫폼</title>
+    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
+    <style>
+        :root {
+            --primary: #1e293b; --accent: #2563eb; --bg: #f8fafc; --card: #ffffff;
+            --text: #0f172a; --text-light: #64748b; --border: #e2e8f0;
+            --success: #10b981; --danger: #ef4444; --warning: #f59e0b;
+        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Pretendard', sans-serif; background-color: #1e293b; margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .mobile-container { width: 100%; max-width: 480px; height: 100vh; max-height: 900px; background: var(--bg); position: relative; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); display: flex; flex-direction: column; }
+        @media (max-height: 900px) { .mobile-container { height: 100vh; max-height: none; border-radius: 0; } }
+        @media (min-width: 481px) { .mobile-container { border-radius: 30px; border: 8px solid #334155; } }
+        
+        .header { background: #1e293b; padding: 15px 20px; color: white; position: sticky; top: 0; z-index: 10; display: flex; justify-content: space-between; align-items: center; }
+        .header img { height: 25px; filter: brightness(0) invert(1); }
+        .header .user-info { font-size: 0.8rem; font-weight: 700; color: #94a3b8; }
+        
+        .content { flex: 1; overflow-y: auto; padding: 20px; padding-bottom: 100px; }
+        .page { display: none; }
+        .page.active { display: block; }
+        
+        .card { background: white; border-radius: 20px; padding: 20px; margin-bottom: 15px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); border: 1px solid var(--border); }
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+        .stat-item { background: #f8fafc; padding: 12px 5px; border-radius: 12px; text-align: center; border: 1px solid #f1f5f9; }
+        .stat-label { font-size: 0.65rem; color: var(--text-light); font-weight: 600; margin-bottom: 4px; }
+        .stat-value { font-size: 0.9rem; font-weight: 800; color: var(--primary); }
+        
+        .input-group { margin-bottom: 15px; position: relative; }
+        .input-group label { display: block; font-size: 0.8rem; color: var(--text-light); margin-bottom: 6px; font-weight: 700; }
+        .input-group input, .input-group textarea, .input-group select { width: 100%; padding: 14px; border: 1px solid var(--border); border-radius: 14px; font-size: 0.9rem; outline: none; transition: 0.2s; }
+        .input-group input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(37,99,235,0.1); }
+        
+        .btn { width: 100%; padding: 16px; border-radius: 14px; border: none; font-weight: 700; cursor: pointer; font-size: 1rem; transition: 0.2s; }
+        .btn-primary { background: var(--accent); color: white; box-shadow: 0 10px 15px -3px rgba(37,99,235,0.3); }
+        .btn-secondary { background: #f1f5f9; color: var(--text); }
+        .btn-inline { position: absolute; right: 10px; bottom: 8px; padding: 6px 12px; border-radius: 10px; font-size: 0.75rem; background: #f1f5f9; border: 1px solid var(--border); cursor: pointer; color: var(--accent); font-weight: 800; }
+        
+        .nav-bar { position: absolute; bottom: 0; width: 100%; background: white; display: flex; justify-content: space-around; padding: 15px 0; border-top: 1px solid var(--border); }
+        .nav-item { color: #94a3b8; font-size: 1.4rem; cursor: pointer; text-align: center; flex: 1; transition: 0.2s; }
+        .nav-item.active { color: var(--accent); }
+        .nav-item span { display: block; font-size: 0.7rem; margin-top: 4px; font-weight: 700; }
+    </style>
+</head>
+<body>
+    <div class="mobile-container">
+        <div class="header">
+            <img src="/static/logo.png" alt="WhiteOn">
+            <div id="user-info-display" class="user-info" style="display:none;"><i class="fas fa-store"></i> <span id="user-name-display"></span></div>
+        </div>
+
+        <div class="content">
+            <!-- Login -->
+            <div id="page-login" class="page active">
+                <div style="text-align:center; margin:50px 0;"><i class="fas fa-shield-alt" style="font-size:3.5rem; color:var(--accent);"></i><h2 style="margin-top:15px; font-weight:800;">사장님 로그인</h2></div>
+                <div class="card" style="border:none; background:none; padding:0;">
+                    <div class="input-group"><label>전화번호</label><input type="text" id="login-phone" placeholder="'-' 없이 입력"><button class="btn-inline" onclick="app.sendOTP('login')">인증번호</button></div>
+                    <div id="otp-group-login" class="input-group" style="display:none;"><label>인증번호</label><input type="text" id="login-otp" placeholder="숫자 6자리"></div>
+                    <button class="btn btn-primary" onclick="app.login()">시작하기</button>
+                    <button class="btn btn-secondary" onclick="app.showPage('register')" style="margin-top:12px; background:none; text-decoration:underline; font-size:0.85rem;">식당 신규 가입 신청</button>
+                </div>
+            </div>
+
+            <!-- Register -->
+            <div id="page-register" class="page">
+                <h2 style="font-weight:800; margin-bottom:20px;">식당 신규 가입</h2>
+                <div class="card">
+                    <div class="input-group"><label>식당 이름</label><input type="text" id="reg-name" placeholder="상호명을 정확히 입력"></div>
+                    <div class="input-group"><label>사장님 연락처</label><input type="text" id="reg-phone" placeholder="'-' 없이 입력"></div>
+                    <div class="input-group"><label>식당 주소</label><input type="text" id="reg-addr" placeholder="주소 찾기 클릭" readonly><button class="btn-inline" onclick="app.searchAddress()">주소 찾기</button></div>
+                    <div class="input-group"><label>상세 주소</label><input type="text" id="reg-addr-detail" placeholder="층, 호수 등 상세 정보"></div>
+                    <input type="hidden" id="reg-region">
+                    <button class="btn btn-primary" onclick="app.register()">신청 완료</button>
+                    <button class="btn btn-secondary" onclick="app.showPage('login')" style="margin-top:10px; background:none;">이전으로</button>
+                </div>
+            </div>
+
+            <!-- Home -->
+            <div id="page-home" class="page">
+                <div class="stats-grid">
+                    <div class="stat-item"><div class="stat-label">접수</div><div class="stat-value" id="stat-pending">0</div></div>
+                    <div class="stat-item" style="background:#fff7ed;"><div class="stat-label">수리중</div><div class="stat-value" style="color:var(--warning);" id="stat-progress">0</div></div>
+                    <div class="stat-item" style="background:#f0fdf4;"><div class="stat-label">완료</div><div class="stat-value" style="color:var(--success);" id="stat-completed">0</div></div>
+                </div>
+                <h3 style="font-weight:800;">진행 중인 내역</h3>
+                <div id="request-list"></div>
+                <button class="btn btn-primary" onclick="app.showPage('new-request')" style="position:fixed; bottom:90px; right:20px; width:auto; border-radius:30px; padding:12px 25px;"><i class="fas fa-plus"></i> 수리 요청</button>
+            </div>
+
+            <!-- New Request -->
+            <div id="page-new-request" class="page">
+                <h2 style="font-weight:800;">수리 요청하기</h2>
+                <div class="card">
+                    <div class="input-group"><label>고장 카테고리</label><select id="req-category"><option value="누수">누수 (물 샘)</option><option value="전원">전원 안 켜짐</option><option value="소음">이상 소음</option><option value="세탁불량">세탁/건조 불량</option><option value="기타">기타</option></select></div>
+                    <div class="input-group"><label>상세 증상</label><textarea id="req-desc" rows="4" placeholder="상세한 고장 증상을 적어주세요."></textarea></div>
+                    <div class="input-group"><label>현장 사진 첨부</label><input type="file" id="req-file" accept="image/*"></div>
+                    <button class="btn btn-primary" onclick="app.submitRequest()">요청 보내기</button>
+                    <button class="btn btn-secondary" onclick="app.showPage('home')" style="margin-top:10px;">취소</button>
+                </div>
+            </div>
+
+            <div id="page-waiting" class="page"><div style="text-align:center; margin-top:80px;"><i class="fas fa-clock" style="font-size:4rem; color:var(--warning);"></i><h2 style="font-weight:800;">승인 대기 중</h2><p style="color:var(--text-light); line-height:1.6;">가입 신청이 정상 접수되었습니다.<br>본사 승인 후 서비스 이용이 가능합니다.</p><button class="btn btn-secondary" onclick="app.showPage('login')" style="margin-top:20px;">로그인 화면으로</button></div></div>
+        </div>
+
+        <div id="owner-nav" class="nav-bar" style="display:none;">
+            <div class="nav-item active" onclick="app.showPage('home')"><i class="fas fa-home"></i><span>홈</span></div>
+            <div class="nav-item" onclick="app.showPage('history')"><i class="fas fa-list-ul"></i><span>내역</span></div>
+            <div class="nav-item" onclick="app.showPage('profile')"><i class="fas fa-user-circle"></i><span>내 정보</span></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = "/api/v1";
+        const app = {
+            restaurant: null, generatedOTP: "111111",
+            showPage(id) { document.querySelectorAll('.page').forEach(p => p.classList.remove('active')); document.getElementById('page-' + id).classList.add('active'); const isMain = !['login','waiting','register'].includes(id); document.getElementById('owner-nav').style.display = isMain ? 'flex' : 'none'; document.getElementById('user-info-display').style.display = isMain ? 'block' : 'none'; },
+            sendOTP(type) { alert(`인증번호: [${this.generatedOTP}]`); document.getElementById(`otp-group-${type}`).style.display = 'block'; },
+            
+            searchAddress() {
+                new daum.Postcode({
+                    oncomplete: (data) => {
+                        document.getElementById('reg-addr').value = data.address;
+                        const parts = data.address.split(' ').filter(p => p.length > 0);
+                        const autoRegion = parts.length >= 2 ? parts[1] : (parts[0] || "");
+                        document.getElementById('reg-region').value = autoRegion;
+                    }
+                }).open();
+            },
+
+            async login() {
+                const phone = document.getElementById('login-phone').value.replace(/[^0-9]/g, '');
+                const otp = document.getElementById('login-otp').value;
+                if(!otp || otp !== this.generatedOTP) return alert('인증번호를 확인해 주세요.');
+                
+                try {
+                    const res = await fetch(`${API_BASE}/restaurants/`);
+                    if(!res.ok) throw new Error();
+                    const data = await res.json();
+                    const found = data.find(r => r.phone.replace(/[^0-9]/g, '') === phone);
+                    if(found) { 
+                        this.restaurant = found; 
+                        if(!found.is_approved) return this.showPage('waiting'); 
+                        document.getElementById('user-name-display').innerText = found.name; 
+                        this.showPage('home'); this.loadRequests(); 
+                    } else alert('등록된 식당 정보가 없습니다. 가입 신청을 먼저 해주세요.');
+                } catch(e) { alert('등록된 식당 정보가 없습니다.'); }
+            },
+
+            async register() {
+                const name = document.getElementById('reg-name').value;
+                const phone = document.getElementById('reg-phone').value;
+                const addr = document.getElementById('reg-addr').value;
+                const detail = document.getElementById('reg-addr-detail').value;
+                const region = document.getElementById('reg-region').value;
+                if(!name || !phone || !addr) return alert('모든 정보를 입력해 주세요.');
+                
+                try {
+                    const res = await fetch(`${API_BASE}/restaurants/`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name, phone, address: `${addr}  ${detail}`, region, is_approved: false })
+                    });
+                    if(res.ok) {
+                        alert('신청이 완료되었습니다! 본사 승인 후 이용 가능합니다.');
+                        this.showPage('waiting');
+                    } else {
+                        const err = await res.json();
+                        alert(err.detail || '신청 중 오류가 발생했습니다.');
+                    }
+                } catch(e) { alert('서버와 통신할 수 없습니다.'); }
+            },
+
+            async loadRequests() {
+                const res = await fetch(`${API_BASE}/requests/?restaurant_id=${this.restaurant.id}`);
+                const data = await res.json();
+                document.getElementById('stat-pending').innerText = data.filter(r=>r.status==='PENDING').length;
+                document.getElementById('stat-progress').innerText = data.filter(r=>r.status==='IN_PROGRESS').length;
+                document.getElementById('stat-completed').innerText = data.filter(r=>r.status==='COMPLETED').length;
+                document.getElementById('request-list').innerHTML = data.reverse().map(r => `
+                    <div class="card">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:8px;"><span style="font-size:0.75rem; color:var(--text-light); font-weight:700;">#${r.id.split('-')[0].toUpperCase()}</span><span style="font-size:0.7rem; font-weight:800; color:var(--accent);">${r.status}</span></div>
+                        <div style="font-weight:800; font-size:1.1rem;">${r.category}</div>
+                        <div style="font-size:0.85rem; color:var(--text-light); margin-top:5px;">${new Date(r.created_at).toLocaleString()}</div>
+                    </div>`).join('') || '<p style="text-align:center; padding:40px; color:var(--text-light);">진행 중인 내역이 없습니다.</p>';
+            },
+            async submitRequest() {
+                const cat = document.getElementById('req-category').value; const desc = document.getElementById('req-desc').value; const file = document.getElementById('req-file').files[0];
+                if(!desc) return alert('증상을 입력해 주세요.');
+                const res = await fetch(`${API_BASE}/requests/`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({restaurant_id:this.restaurant.id, category:cat, description:desc, status:'PENDING'}) });
+                if(res.ok) { const r = await res.json(); if(file) { const fd = new FormData(); fd.append('file', file); await fetch(`${API_BASE}/requests/${r.id}/media`, { method:'POST', body:fd }); } alert('요청 완료!'); this.showPage('home'); this.loadRequests(); }
+            }
+        };
+    </script>
+</body>
+</html>

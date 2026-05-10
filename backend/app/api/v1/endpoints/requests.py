@@ -75,7 +75,7 @@ def create_request(data: RequestCreate, session: Session = Depends(get_session))
 
 from sqlalchemy.orm import selectinload
 
-from sqlalchemy import or_
+from sqlalchemy import or_, String, func
 
 @router.get("/", response_model=List[RequestRead])
 def list_requests(
@@ -83,39 +83,33 @@ def list_requests(
     restaurant_id: Optional[UUID] = None,
     assigned_branch_id: Optional[UUID] = None,
     unassigned_region: Optional[str] = None,
+    search_query: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     session: Session = Depends(get_session)
 ):
-    from app.models.domain import Restaurant
-    statement = select(ServiceRequest).join(Restaurant).options(
+    from app.models.domain import Restaurant, Branch
+    statement = select(ServiceRequest).join(Restaurant, isouter=True).join(Branch, isouter=True).options(
         selectinload(ServiceRequest.media),
         selectinload(ServiceRequest.restaurant),
         selectinload(ServiceRequest.branch)
     )
     
-    if unassigned_region and assigned_branch_id:
-        # 지사 전용: 자신에게 배정된 건 OR (미배정 건 중 해당 지역 주소 포함 건)
-        statement = statement.join(ServiceRequest.restaurant).where(
-            or_(
-                ServiceRequest.assigned_branch_id == assigned_branch_id,
-                or_(
-                    ServiceRequest.assigned_branch_id == None,
-                    ServiceRequest.assigned_branch_id == None # Placeholder for OR logic
-                ) & Restaurant.address.contains(unassigned_region)
-            )
-        )
     if assigned_branch_id:
-        # 지사의 정보를 가져와서 지역 코드를 확인
+        # 지사의 정보를 가져와서 지역 코드를 확인 (unassigned_region이 우선, 없으면 DB의 region_code 사용)
         from app.models.domain import Branch
         branch = session.get(Branch, assigned_branch_id)
-        region = branch.region_code if branch else None
+        region = unassigned_region or (branch.region_code if branch else None)
         
         # 1. 이미 이 지사에 배정된 요청 OR 
-        # 2. 아직 배정되지 않았고(PENDING) 식당 주소에 지사의 지역명이 포함된 요청
+        # 2. 아직 배정되지 않았고(PENDING) 식당 주소에 해당 지역명이 포함된 요청
         statement = statement.where(
-            (ServiceRequest.assigned_branch_id == assigned_branch_id) |
-            (
-                (ServiceRequest.assigned_branch_id == None) & 
-                (Restaurant.address.contains(region) if region else False)
+            or_(
+                ServiceRequest.assigned_branch_id == assigned_branch_id,
+                (
+                    (ServiceRequest.assigned_branch_id == None) & 
+                    (Restaurant.address.contains(region) if region else False)
+                )
             )
         )
     else:
@@ -123,6 +117,26 @@ def list_requests(
             statement = statement.where(ServiceRequest.status == status)
         if restaurant_id:
             statement = statement.where(ServiceRequest.restaurant_id == restaurant_id)
+
+    # 통합 검색어 처리 (접수번호, 식당명, 지사명)
+    if search_query:
+        # UUID 형식인 경우 ID와 매칭, 아니면 이름들과 매칭
+        statement = statement.where(
+            or_(
+                func.cast(ServiceRequest.id, String).contains(search_query),
+                Restaurant.name.contains(search_query),
+                Branch.name.contains(search_query)
+            )
+        )
+
+    # 기간 필터링 처리
+    if start_date:
+        start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+        statement = statement.where(ServiceRequest.created_at >= start_dt)
+    if end_date:
+        # 종료일은 해당 날짜의 23:59:59까지 포함
+        end_dt = datetime.strptime(f"{end_date} 23:59:59", "%Y-%m-%d %H:%M:%S")
+        statement = statement.where(ServiceRequest.created_at <= end_dt)
     
     results = session.exec(statement).all()
     return [RequestRead.from_db(r) for r in results]
@@ -258,3 +272,15 @@ async def upload_media(
     session.commit()
     
     return {"status": "success", "file_url": file_url}
+
+@router.delete("/{request_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_request(request_id: UUID, session: Session = Depends(get_session)):
+    db_request = session.get(ServiceRequest, request_id)
+    if not db_request:
+        raise HTTPException(status_code=404, detail="Request not found")
+    
+    # 관련 미디어 파일이 있다면 함께 삭제 로직을 넣을 수 있으나, 
+    # 여기서는 간단히 DB 레코드만 삭제합니다.
+    session.delete(db_request)
+    session.commit()
+    return None

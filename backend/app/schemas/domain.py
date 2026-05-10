@@ -74,6 +74,7 @@ class BranchUpdate(BaseModel):
     manager_phone: Optional[str] = None
     commission_rate: Optional[float] = None
     is_approved: Optional[bool] = None
+    tier: Optional[str] = None
 
 class BranchRead(BaseModel):
     id: UUID
@@ -83,6 +84,7 @@ class BranchRead(BaseModel):
     manager_phone: Optional[str]
     commission_rate: float
     is_approved: bool
+    tier: str
     created_at: datetime
 
     class Config:

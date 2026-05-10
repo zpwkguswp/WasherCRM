@@ -15,6 +15,7 @@ class Branch(SQLModel, table=True):
     is_approved: bool = Field(default=False, index=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+    tier: str = Field(default="BRONZE") # BRONZE, SILVER, GOLD, DIAMOND
     
     requests: List["ServiceRequest"] = Relationship(back_populates="branch")
 

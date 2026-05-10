@@ -1,0 +1,10 @@
+{
+  "appId": "com.washercrm.app",
+  "appName": "WasherCRM",
+  "webDir": "www",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true
+  }
+}
