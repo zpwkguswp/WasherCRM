@@ -21,21 +21,25 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# 1. 앱 마운트 설정 (사장님용 모바일 웹 앱)
-frontend_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "frontend")
-if not os.path.exists(frontend_dir):
-    os.makedirs(frontend_dir)
-app.mount("/app", StaticFiles(directory=frontend_dir, html=True), name="app")
-
-# 2. 업로드 사진 마운트 설정
+# 1. 업로드 사진 마운트 설정
 upload_dir = os.path.join(os.path.dirname(__file__), "static", "uploads")
 if not os.path.exists(upload_dir):
     os.makedirs(upload_dir)
 app.mount("/uploads", StaticFiles(directory=upload_dir), name="uploads")
 
-# 3. 정적 자산(로고 등) 마운트 설정
+# 2. 정적 자산(로고 등) 마운트 설정
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+
+
+# 루트 접속 시 런처(index.html) 표시
+@app.get("/", response_class=HTMLResponse)
+async def root():
+    index_path = os.path.join(www_dir, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return {"message": "WhiteOn API is running (www/index.html not found)"}
 
 # Admin UI 라우트
 @app.get("/admin", response_class=HTMLResponse)
@@ -43,12 +47,18 @@ async def admin_page():
     static_path = os.path.join(os.path.dirname(__file__), "static", "admin.html")
     return FileResponse(static_path)
 
-# Manager UI 라우트
+# 각 앱 전용 라우트
+@app.get("/hq", response_class=HTMLResponse)
+async def hq_page():
+    return FileResponse(os.path.join(www_dir, "hq.html"))
+
 @app.get("/manager", response_class=HTMLResponse)
 async def manager_page():
-    # frontend 폴더에 있는 manager.html을 반환
-    manager_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "frontend", "manager.html")
-    return FileResponse(manager_path)
+    return FileResponse(os.path.join(www_dir, "manager.html"))
+
+@app.get("/restaurant", response_class=HTMLResponse)
+async def restaurant_page():
+    return FileResponse(os.path.join(www_dir, "restaurant.html"))
 
 # 라우터 등록
 app.include_router(api_router, prefix="/api/v1")
@@ -62,10 +72,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/")
-async def root():
-    return {"message": "WhiteOn API is running"}
-
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
+
+# UI 폴더(www) 루트 마운트 - 모든 파일 접근 가능 (다른 라우트들과 충돌하지 않도록 마지막에 배치)
+www_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "www")
+app.mount("/", StaticFiles(directory=www_dir, html=True), name="www")

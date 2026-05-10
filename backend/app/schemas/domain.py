@@ -139,3 +139,18 @@ class PaymentRead(BaseModel):
 
     class Config:
         from_attributes = True
+
+class DeviceTokenCreate(BaseModel):
+    token: str
+    platform: str
+    user_id: Optional[UUID] = None
+    user_type: Optional[str] = "MANAGER" # MANAGER, RESTAURANT
+
+class DeviceTokenRead(BaseModel):
+    id: UUID
+    token: str
+    platform: str
+    is_active: bool
+    created_at: datetime
+    class Config:
+        from_attributes = True

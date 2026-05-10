@@ -8,8 +8,10 @@ import shutil
 import os
 
 from app.db.session import get_session
-from app.models.domain import ServiceRequest, AuditLog, RequestMedia
+from app.models.domain import ServiceRequest, AuditLog, RequestMedia, DeviceToken, Branch, Restaurant
 from app.schemas.domain import RequestCreate, RequestUpdate, RequestRead
+from app.utils.notifications import send_push_notification
+from app.services.storage import storage
 
 router = APIRouter()
 
@@ -32,6 +34,43 @@ def create_request(data: RequestCreate, session: Session = Depends(get_session))
     session.add(log)
     session.commit()
     
+    # 3. 푸시 알림 발송 (해당 지역 매니저에게만)
+    try:
+        # 1. 요청을 올린 식당 정보 조회
+        restaurant = session.get(Restaurant, new_request.restaurant_id)
+        
+        # 2. 모든 매니저 토큰과 담당 지역 정보 조회
+        token_statement = select(DeviceToken.token, Branch.region_code).join(
+            Branch, Branch.id == DeviceToken.user_id
+        ).where(
+            DeviceToken.user_type == "MANAGER",
+            DeviceToken.is_active == True
+        )
+        results = session.exec(token_statement).all()
+        
+        token_list = []
+        for token, region_code in results:
+            # 지역이 정확히 일치하거나, 식당 주소에 지사 지역 코드가 포함된 경우 (예: "수원" in "경기 수원시...")
+            if region_code == restaurant.region or (region_code and region_code in restaurant.address):
+                token_list.append(token)
+        
+        print(f"--- Notification Debug ---")
+        print(f"Restaurant Region: {restaurant.region}")
+        print(f"Restaurant Address: {restaurant.address}")
+        print(f"Found {len(token_list)} manager(s) to notify.")
+        print(f"--------------------------")
+
+        if token_list:
+            send_push_notification(
+                tokens=token_list,
+                title="🔔 신규 수리 요청 접수",
+                body=f"[{data.category}] 새로운 수리 요청이 등록되었습니다.",
+                data={"request_id": str(new_request.id)}
+            )
+            print(f"Successfully triggered notification for {len(token_list)} tokens.")
+    except Exception as e:
+        print(f"Notification error: {e}")
+    
     return new_request
 
 from sqlalchemy.orm import selectinload
@@ -47,7 +86,7 @@ def list_requests(
     session: Session = Depends(get_session)
 ):
     from app.models.domain import Restaurant
-    statement = select(ServiceRequest).options(
+    statement = select(ServiceRequest).join(Restaurant).options(
         selectinload(ServiceRequest.media),
         selectinload(ServiceRequest.restaurant),
         selectinload(ServiceRequest.branch)
@@ -64,13 +103,26 @@ def list_requests(
                 ) & Restaurant.address.contains(unassigned_region)
             )
         )
+    if assigned_branch_id:
+        # 지사의 정보를 가져와서 지역 코드를 확인
+        from app.models.domain import Branch
+        branch = session.get(Branch, assigned_branch_id)
+        region = branch.region_code if branch else None
+        
+        # 1. 이미 이 지사에 배정된 요청 OR 
+        # 2. 아직 배정되지 않았고(PENDING) 식당 주소에 지사의 지역명이 포함된 요청
+        statement = statement.where(
+            (ServiceRequest.assigned_branch_id == assigned_branch_id) |
+            (
+                (ServiceRequest.assigned_branch_id == None) & 
+                (Restaurant.address.contains(region) if region else False)
+            )
+        )
     else:
         if status:
             statement = statement.where(ServiceRequest.status == status)
         if restaurant_id:
             statement = statement.where(ServiceRequest.restaurant_id == restaurant_id)
-        if assigned_branch_id:
-            statement = statement.where(ServiceRequest.assigned_branch_id == assigned_branch_id)
     
     results = session.exec(statement).all()
     return [RequestRead.from_db(r) for r in results]
@@ -98,18 +150,48 @@ def update_request(request_id: UUID, data: RequestUpdate, session: Session = Dep
         else:
             setattr(db_request, key, value)
     
-    # 상태 변경 시 관련 타임스탬프 업데이트 및 결제/정산 처리
+    # 상태 변경 시 관련 타임스탬프 업데이트 및 알람 발송
     if "status" in update_data:
-        if update_data["status"] == "IN_PROGRESS" and not db_request.assigned_at:
+        status = update_data["status"]
+        if status == "IN_PROGRESS" and not db_request.assigned_at:
             db_request.assigned_at = datetime.utcnow()
-        elif update_data["status"] == "COMPLETED" and not db_request.completed_at:
+        elif status == "COMPLETED" and not db_request.completed_at:
             db_request.completed_at = datetime.utcnow()
-            # [추가] 완료 시 결제 및 정산 데이터 자동 생성 (대시보드 연동용)
-            from app.models.domain import Payment, Settlement, Branch
-            meta = db_request.metadata_json or {}
-            amount = float(meta.get("requested_amount", 0))
             
-            if amount > 0:
+        # [추가] 식당 사장님께 상태 변경 알림 발송
+        try:
+            from app.models.domain import DeviceToken
+            from app.utils.notifications import send_push_notification
+            
+            # 식당 사장님의 토큰 조회
+            token_statement = select(DeviceToken.token).where(
+                DeviceToken.user_id == db_request.restaurant_id,
+                DeviceToken.user_type == "RESTAURANT",
+                DeviceToken.is_active == True
+            )
+            tokens = session.exec(token_statement).all()
+            
+            if tokens:
+                status_msg = {
+                    "IN_PROGRESS": "🛠️ 수리 매니저가 현장에 도착하여 수리를 시작했습니다.",
+                    "PAYMENT_REQUESTED": "💳 수리가 완료되어 결제 요청이 도착했습니다.",
+                    "COMPLETED": "✅ 모든 수리 및 결제가 완료되었습니다. 감사합니다!"
+                }
+                msg = status_msg.get(status, f"수리 상태가 [{status}] (으)로 변경되었습니다.")
+                
+                send_push_notification(
+                    tokens=tokens,
+                    title="📣 수리 진행 알림",
+                    body=msg,
+                    data={"request_id": str(db_request.id), "status": status}
+                )
+                print(f"Sent status update notification to restaurant: {db_request.restaurant_id}")
+        except Exception as e:
+            print(f"Failed to send status update notification: {e}")
+
+        # [추가] 완료 시 결제 및 정산 데이터 자동 생성
+        if status == "COMPLETED":
+            # ... (기존 정산 로직 유지)
                 # 1. 결제 기록 생성
                 new_payment = Payment(
                     request_id=db_request.id,
@@ -163,23 +245,10 @@ async def upload_media(
     if not db_request:
         raise HTTPException(status_code=404, detail="Request not found")
     
-    # 2. 파일 저장 경로 설정
-    upload_dir = os.path.join("app", "static", "uploads")
-    if not os.path.exists(upload_dir):
-        os.makedirs(upload_dir)
+    # 2. 공통 저장소 서비스를 이용해 파일 업로드 (Local 또는 S3 자동 전환)
+    file_url = await storage.upload_file(file, folder="uploads")
         
-    file_extension = os.path.splitext(file.filename)[1]
-    file_name = f"{request_id}_{datetime.now().timestamp()}{file_extension}"
-    file_path = os.path.join(upload_dir, file_name)
-    
-    # 3. 실제 파일 저장
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-        
-    # 4. DB 기록
-    # 외부 접근용 URL 생성
-    file_url = f"/uploads/{file_name}"
-    
+    # 3. DB 기록
     new_media = RequestMedia(
         request_id=request_id,
         type="IMAGE",

@@ -102,3 +102,14 @@ class AuditLog(SQLModel, table=True):
     payload: Optional[dict] = Field(default_factory=dict, sa_column=Column(JSON))
     changed_by: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+
+class DeviceToken(SQLModel, table=True):
+    __tablename__ = "device_tokens"
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    user_id: Optional[UUID] = Field(default=None, index=True) # 지사 ID 또는 식당 ID
+    user_type: str = Field(default="MANAGER", index=True) # MANAGER, RESTAURANT
+    token: str = Field(index=True, unique=True)
+    platform: str # android, ios, web
+    is_active: bool = Field(default=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
