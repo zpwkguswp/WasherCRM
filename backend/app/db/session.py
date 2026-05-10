@@ -52,11 +52,10 @@ def init_db():
                 WHERE amount = 50000;
             """))
             
-            # [사용자 요청 복구] #3CEE5C62 건 만족도 주입
-            # SQLite의 json_set 기능을 사용하여 기존 메타데이터에 survey 객체 추가
+            # PostgreSQL의 jsonb_set 기능을 사용하여 기존 메타데이터에 survey 객체 추가
             session.execute(text("""
                 UPDATE service_requests 
-                SET metadata = json_set(COALESCE(metadata, '{}'), '$.survey', json('{"rating": 4, "comment": "사장님 잘생겼어요"}'))
+                SET metadata = jsonb_set(COALESCE(metadata::jsonb, '{}'::jsonb), '{survey}', '{"rating": 4, "comment": "사장님 잘생겼어요"}'::jsonb)
                 WHERE CAST(id AS TEXT) LIKE '3cee5c62%';
             """))
             

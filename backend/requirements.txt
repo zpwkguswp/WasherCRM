@@ -8,3 +8,4 @@ python-multipart
 pytest
 boto3
 botocore
+firebase-admin
