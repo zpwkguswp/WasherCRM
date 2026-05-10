@@ -120,7 +120,7 @@
                     <h3>🏆 지사 실적 랭킹</h3>
                     <div class="table-responsive">
                         <table id="branch-rank-table">
-                            <thead><tr><th>순위</th><th>지사명</th><th>지역</th><th>완료</th><th>총 매출</th></tr></thead>
+                            <thead><tr><th>순위</th><th>지사명</th><th>등급</th><th>목표 달성률</th><th>총 매출</th><th>평균 만족도</th></tr></thead>
                             <tbody></tbody>
                         </table>
                     </div>
@@ -272,7 +272,7 @@
                     <div class="stat-card"><div class="stat-label">전체 매출액</div><div class="stat-value">₩${totalRev.toLocaleString()}</div></div>
                     <div class="stat-card"><div class="stat-label">본사 총수익</div><div class="stat-value">₩${data.reduce((a,b)=>a+b.total_hq_commission,0).toLocaleString()}</div></div>
                 `;
-                document.querySelector('#branch-rank-table tbody').innerHTML = data.sort((a,b)=>b.total_revenue - a.total_revenue).map((b,i)=>`<tr><td>${i+1}</td><td><b>${b.branch_name}</b></td><td>${b.region_code}</td><td>${b.completed_requests}건</td><td>₩${b.total_revenue.toLocaleString()}</td></tr>`).join('');
+                document.querySelector('#branch-rank-table tbody').innerHTML = data.sort((a,b)=>b.total_revenue - a.total_revenue).map((b,i)=>`<tr><td>${i+1}</td><td><b>${b.branch_name}</b></td><td><span class="badge badge-completed" style="background:${this.getTierStyle(b.tier)}">${b.tier || 'BRONZE'}</span></td><td>${(b.progress || 0).toFixed(1)}%</td><td>₩${b.total_revenue.toLocaleString()}</td><td><b style="color:var(--warning);">⭐ ${(b.avg_satisfaction || 0).toFixed(1)} / 5.0</b></td></tr>`).join('');
                 
                 // 매출 비중 원형 차트
                 const ctx = document.getElementById('revenuePieChart').getContext('2d');
@@ -567,6 +567,7 @@
                 const res = await fetch(`${API_BASE}/restaurants/${id}`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ name: name, region: region, address: fullAddr }) });
                 if(res.ok) { alert('식당 정보가 성공적으로 수정되었습니다.'); this.closeModal(); this.loadRestaurants(); } else { alert('수정 실패'); }
             },
+            getTierStyle(tier) { const map = { 'BRONZE': '#cd7f32', 'SILVER': '#c0c0c0', 'GOLD': '#ffd700', 'DIAMOND': '#b9f2ff' }; return map[(tier || 'BRONZE').toUpperCase()] || '#cd7f32'; },
             getStatClass(s) { return s==='PENDING'?'pending':(s==='IN_PROGRESS'?'progress':(s==='PAYMENT_REQUESTED'?'wait':'completed')); },
             formatStat(s) { const map={'PENDING':'접수대기','IN_PROGRESS':'수리중','PAYMENT_REQUESTED':'결제대기','COMPLETED':'수리완료'}; return map[s]||s; },
             async approve(type, id) { 

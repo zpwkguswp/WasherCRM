@@ -8,7 +8,7 @@ import shutil
 import os
 
 from app.db.session import get_session
-from app.models.domain import ServiceRequest, AuditLog, RequestMedia, DeviceToken, Branch, Restaurant
+from app.models.domain import ServiceRequest, AuditLog, RequestMedia, DeviceToken, Branch, Restaurant, Payment, Settlement
 from app.schemas.domain import RequestCreate, RequestUpdate, RequestRead
 from app.utils.notifications import send_push_notification
 from app.services.storage import storage
@@ -160,7 +160,12 @@ def update_request(request_id: UUID, data: RequestUpdate, session: Session = Dep
     update_data = data.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         if key == "metadata":
-            setattr(db_request, "metadata_json", value)
+            # [중요] 기존 객체를 직접 update하면 DB 변경 감지가 안 될 수 있음
+            # 반드시 새로운 dict 객체를 생성하여 할당해야 함
+            current_meta = dict(db_request.metadata_json or {})
+            if isinstance(value, dict):
+                current_meta.update(value)
+            db_request.metadata_json = current_meta
         else:
             setattr(db_request, key, value)
     
@@ -205,31 +210,33 @@ def update_request(request_id: UUID, data: RequestUpdate, session: Session = Dep
 
         # [추가] 완료 시 결제 및 정산 데이터 자동 생성
         if status == "COMPLETED":
-            # ... (기존 정산 로직 유지)
-                # 1. 결제 기록 생성
-                new_payment = Payment(
+            # 메타데이터에서 요청 금액 가져오기
+            amount = db_request.metadata_json.get("requested_amount", 0) if db_request.metadata_json else 0
+            
+            # 1. 결제 기록 생성
+            new_payment = Payment(
+                request_id=db_request.id,
+                amount=amount,
+                merchant_uid=f"auto_{db_request.id.hex[:8]}",
+                status="PAID"
+            )
+            session.add(new_payment)
+            
+            # 2. 지사 정산 데이터 생성
+            if db_request.assigned_branch_id:
+                branch = session.get(Branch, db_request.assigned_branch_id)
+                rate = branch.commission_rate if branch else 10.0
+                hq_comm = amount * (rate / 100.0)
+                new_settlement = Settlement(
+                    branch_id=db_request.assigned_branch_id,
                     request_id=db_request.id,
-                    amount=amount,
-                    merchant_uid=f"auto_{db_request.id.hex[:8]}",
-                    status="PAID"
+                    total_amount=amount,
+                    hq_commission=hq_comm,
+                    branch_settlement_amount=amount - hq_comm,
+                    status="COMPLETED",
+                    settled_at=datetime.utcnow()
                 )
-                session.add(new_payment)
-                
-                # 2. 지사 정산 데이터 생성
-                if db_request.assigned_branch_id:
-                    branch = session.get(Branch, db_request.assigned_branch_id)
-                    rate = branch.commission_rate if branch else 0.0
-                    hq_comm = amount * (rate / 100.0)
-                    new_settlement = Settlement(
-                        branch_id=db_request.assigned_branch_id,
-                        request_id=db_request.id,
-                        total_amount=amount,
-                        hq_commission=hq_comm,
-                        branch_settlement_amount=amount - hq_comm,
-                        status="COMPLETED",
-                        settled_at=datetime.utcnow()
-                    )
-                    session.add(new_settlement)
+                session.add(new_settlement)
     
     db_request.updated_at = datetime.utcnow()
     session.add(db_request)
