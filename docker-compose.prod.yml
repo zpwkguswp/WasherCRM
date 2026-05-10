@@ -1,0 +1,34 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: whiteon_api_prod
+    restart: always
+    ports:
+      - "80:8000"  # 외부 80포트를 컨테이너 8000포트로 연결
+    env_file:
+      - .env.production
+    volumes:
+      - ./backend/app/static:/app/app/static # 업로드 파일 영속성 유지
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# 만약 RDS를 사용하지 않고 EC2 내부에 DB를 띄우고 싶다면 
+# 아래 주석을 해제하고 .env.production의 DATABASE_URL을 수정하세요.
+#  db:
+#    image: postgres:15
+#    container_name: whiteon_db_prod
+#    restart: always
+#    environment:
+#      POSTGRES_USER: ${DB_USER:-washer_user}
+#      POSTGRES_PASSWORD: ${DB_PASSWORD:-washer_password}
+#      POSTGRES_DB: ${DB_NAME:-washer_crm}
+#    volumes:
+#      - postgres_data_prod:/var/lib/postgresql/data
+
+volumes:
+  postgres_data_prod:

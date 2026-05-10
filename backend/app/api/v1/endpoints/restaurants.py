@@ -97,3 +97,31 @@ def update_restaurant(restaurant_id: UUID, data: RestaurantUpdate, session: Sess
     session.commit()
     session.refresh(restaurant)
     return restaurant
+
+@router.delete("/{restaurant_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_restaurant(restaurant_id: UUID, session: Session = Depends(get_session)):
+    restaurant = session.get(Restaurant, restaurant_id)
+    if not restaurant:
+        raise HTTPException(status_code=404, detail="Restaurant not found")
+    
+    # 연관된 수리 요청이 있는지 확인
+    linked_requests = session.exec(select(ServiceRequest).where(ServiceRequest.restaurant_id == restaurant_id)).first()
+    if linked_requests:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail="이 식당의 수리 요청 내역이 존재하여 삭제할 수 없습니다. 먼저 내역을 정리해 주세요."
+        )
+
+    # 감사 로그
+    log = AuditLog(
+        table_name="restaurants",
+        target_id=restaurant.id,
+        action="DELETE",
+        payload=jsonable_encoder(restaurant),
+        changed_by="system_admin"
+    )
+    session.add(log)
+    
+    session.delete(restaurant)
+    session.commit()
+    return None

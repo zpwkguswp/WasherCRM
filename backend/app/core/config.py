@@ -17,4 +17,11 @@ class Settings:
     # Firebase (FCM)
     FIREBASE_SERVICE_ACCOUNT_JSON: str = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON", "")
 
+    # Storage Settings (local or s3)
+    STORAGE_TYPE: str = os.getenv("STORAGE_TYPE", "local")
+    S3_BUCKET_NAME: str = os.getenv("S3_BUCKET_NAME", "whiteon-media")
+    S3_REGION: str = os.getenv("S3_REGION", "ap-northeast-2")
+    AWS_ACCESS_KEY_ID: str = os.getenv("AWS_ACCESS_KEY_ID", "")
+    AWS_SECRET_ACCESS_KEY: str = os.getenv("AWS_SECRET_ACCESS_KEY", "")
+
 settings = Settings()

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "655903406434",
+    "project_id": "washercrm",
+    "storage_bucket": "washercrm.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:655903406434:android:0309d8a0ebfd8fef4ed43b",
+        "android_client_info": {
+          "package_name": "com.washercrm.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCi9GOS_HrOO2kzVYDJXLXl4yxYhihTAvA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

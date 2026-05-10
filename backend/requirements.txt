@@ -6,3 +6,5 @@ alembic
 python-dotenv
 python-multipart
 pytest
+boto3
+botocore

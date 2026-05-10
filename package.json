@@ -1,0 +1,26 @@
+{
+  "name": "washercrm",
+  "version": "1.0.0",
+  "description": "본 프로젝트는 전국 단위의 세척기 판매, 수리(A/S), 세제 공급 및 부품 관리를 위한 FSM(Field Service Management) 플랫폼입니다.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zpwkguswp/WasherCRM.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/zpwkguswp/WasherCRM/issues"
+  },
+  "homepage": "https://github.com/zpwkguswp/WasherCRM#readme",
+  "dependencies": {
+    "@capacitor/android": "^8.3.1",
+    "@capacitor/cli": "^8.3.1",
+    "@capacitor/core": "^8.3.1",
+    "@capacitor/push-notifications": "^8.0.3"
+  }
+}

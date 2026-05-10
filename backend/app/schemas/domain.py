@@ -74,6 +74,7 @@ class BranchUpdate(BaseModel):
     manager_phone: Optional[str] = None
     commission_rate: Optional[float] = None
     is_approved: Optional[bool] = None
+    tier: Optional[str] = None
 
 class BranchRead(BaseModel):
     id: UUID
@@ -83,6 +84,7 @@ class BranchRead(BaseModel):
     manager_phone: Optional[str]
     commission_rate: float
     is_approved: bool
+    tier: str
     created_at: datetime
 
     class Config:
@@ -137,5 +139,20 @@ class PaymentRead(BaseModel):
     status: str
     paid_at: datetime
 
+    class Config:
+        from_attributes = True
+
+class DeviceTokenCreate(BaseModel):
+    token: str
+    platform: str
+    user_id: Optional[UUID] = None
+    user_type: Optional[str] = "MANAGER" # MANAGER, RESTAURANT
+
+class DeviceTokenRead(BaseModel):
+    id: UUID
+    token: str
+    platform: str
+    is_active: bool
+    created_at: datetime
     class Config:
         from_attributes = True
