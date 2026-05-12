@@ -1,0 +1,94 @@
+﻿====================================================
+WasherCRM DB Migration — FINISH
+Date: 2026-05-12 13:46:19
+====================================================
+
+## [A] Python 마이그레이션 헬퍼 실행
+📦 백업 소스: /home/ubuntu/backend/backup/washer_crm_20260512_134047.db
+
+## [Step A] PostgreSQL에 테이블 생성
+  생성된 테이블 (8): audit_logs, branches, device_tokens, payments, request_media, restaurants, service_requests, settlements
+
+## [Step B] 데이터 마이그레이션
+  branches            : 3건 이관 완료 ✓
+  restaurants         : 3건 이관 완료 ✓
+  service_requests    : 5건 이관 완료 ✓
+  request_media       : 2건 이관 완료 ✓
+  payments            : 3건 이관 완료 ✓
+  settlements         : 3건 이관 완료 ✓
+
+✅ 총 19건 이관 완료
+
+## [Step C] PostgreSQL row 수 검증
+  branches            : 3건
+  restaurants         : 3건
+  service_requests    : 5건
+  request_media       : 2건
+  payments            : 3건
+  settlements         : 3건
+
+✅ 데이터 마이그레이션 완료
+
+## [B] 백엔드 재기동 (systemd)
+● washercrm-backend.service - WasherCRM FastAPI Backend
+     Loaded: loaded (/etc/systemd/system/washercrm-backend.service; enabled; vendor preset: enabled)
+     Active: active (running) since Tue 2026-05-12 13:46:21 UTC; 4s ago
+   Main PID: 45973 (python)
+      Tasks: 6 (limit: 1071)
+     Memory: 95.7M
+        CPU: 1.298s
+     CGroup: /system.slice/washercrm-backend.service
+             └─45973 /home/ubuntu/backend/venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+
+May 12 13:46:21 ip-172-31-33-189 systemd[1]: Started WasherCRM FastAPI Backend.
+
+## [C] API 호출 테스트
+GET /api/v1/branches/    → HTTP 200
+GET /api/v1/restaurants/ → HTTP 200
+GET /                    → HTTP 200
+
+--- /api/v1/branches/ 응답 (처음 200자) ---
+[{"id":"afdcbb6b-2dfb-4de8-887a-b7889fc9abca","name":"의정부","region_code":"의정부시","address":"경기 의정부시 가금로 29  134","manager_phone":"010123","commission_rate":10.0,"is_appr
+
+## [D] 백엔드 로그 (마지막 25줄)
+2026-05-12 13:46:27,700 INFO sqlalchemy.engine.Engine [cached since 0.05627s ago] {'branch_id_1': UUID('afdcbb6b-2dfb-4de8-887a-b7889fc9abca')}
+2026-05-12 13:46:27,701 INFO sqlalchemy.engine.Engine SELECT sum(settlements.total_amount) AS sum_1 
+FROM settlements 
+WHERE settlements.branch_id = %(branch_id_1)s::UUID
+2026-05-12 13:46:27,701 INFO sqlalchemy.engine.Engine [cached since 0.05729s ago] {'branch_id_1': UUID('762db42f-2b8b-4b0b-a404-101be1798771')}
+2026-05-12 13:46:27,702 INFO sqlalchemy.engine.Engine SELECT sum(settlements.total_amount) AS sum_1 
+FROM settlements 
+WHERE settlements.branch_id = %(branch_id_1)s::UUID
+2026-05-12 13:46:27,702 INFO sqlalchemy.engine.Engine [cached since 0.0583s ago] {'branch_id_1': UUID('5f8a4ec9-0322-4cdd-8c89-64cddfd5bd92')}
+2026-05-12 13:46:27,702 INFO sqlalchemy.engine.Engine COMMIT
+2026-05-12 13:46:27,703 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-05-12 13:46:27,703 INFO sqlalchemy.engine.Engine SELECT branches.id, branches.name, branches.region_code, branches.address, branches.manager_phone, branches.commission_rate, branches.is_approved, branches.created_at, branches.updated_at, branches.tier 
+FROM branches 
+WHERE branches.id = %(pk_1)s::UUID
+2026-05-12 13:46:27,703 INFO sqlalchemy.engine.Engine [cached since 0.05417s ago] {'pk_1': UUID('afdcbb6b-2dfb-4de8-887a-b7889fc9abca')}
+2026-05-12 13:46:27,704 INFO sqlalchemy.engine.Engine SELECT branches.id, branches.name, branches.region_code, branches.address, branches.manager_phone, branches.commission_rate, branches.is_approved, branches.created_at, branches.updated_at, branches.tier 
+FROM branches 
+WHERE branches.id = %(pk_1)s::UUID
+2026-05-12 13:46:27,705 INFO sqlalchemy.engine.Engine [cached since 0.05525s ago] {'pk_1': UUID('762db42f-2b8b-4b0b-a404-101be1798771')}
+2026-05-12 13:46:27,705 INFO sqlalchemy.engine.Engine SELECT branches.id, branches.name, branches.region_code, branches.address, branches.manager_phone, branches.commission_rate, branches.is_approved, branches.created_at, branches.updated_at, branches.tier 
+FROM branches 
+WHERE branches.id = %(pk_1)s::UUID
+2026-05-12 13:46:27,705 INFO sqlalchemy.engine.Engine [cached since 0.05619s ago] {'pk_1': UUID('5f8a4ec9-0322-4cdd-8c89-64cddfd5bd92')}
+INFO:     127.0.0.1:51302 - "GET /api/v1/branches/ HTTP/1.0" 200 OK
+2026-05-12 13:46:27,707 INFO sqlalchemy.engine.Engine ROLLBACK
+
+## [E] 시스템 현황
+               total        used        free      shared  buff/cache   available
+Mem:             914         225          89          16         599         501
+/dev/root        29G  9.8G   20G  34% /
+
+====================================================
+✅ DB 마이그레이션 완료
+
+📌 백업:
+    SQLite: /home/ubuntu/backend/backup/washer_crm_*.db
+    .env:   /home/ubuntu/backend/.env.sqlite.bak
+
+📌 PostgreSQL 직접 접속 (디버깅용):
+    sudo -u postgres psql washercrm -c '\dt'
+====================================================

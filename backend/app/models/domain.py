@@ -1,7 +1,8 @@
-from datetime import datetime
+from datetime import datetime, date
+from decimal import Decimal
 from typing import Optional, List
 from uuid import UUID, uuid4
-from sqlalchemy import Column, DateTime, String, Text, DECIMAL, Float, JSON
+from sqlalchemy import Column, DateTime, Date, String, Text, DECIMAL, Float, JSON
 from sqlmodel import SQLModel, Field, Relationship
 
 class Branch(SQLModel, table=True):
@@ -16,8 +17,10 @@ class Branch(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     tier: str = Field(default="BRONZE") # BRONZE, SILVER, GOLD, DIAMOND
-    
+    settlement_cycle: str = Field(default="WEEKLY") # WEEKLY, BIWEEKLY, MONTHLY, CUSTOM
+
     requests: List["ServiceRequest"] = Relationship(back_populates="branch")
+    settlements: List["Settlement"] = Relationship(back_populates="branch")
 
 class Restaurant(SQLModel, table=True):
     __tablename__ = "restaurants"
@@ -54,7 +57,8 @@ class ServiceRequest(SQLModel, table=True):
     restaurant: Restaurant = Relationship(back_populates="requests")
     media: List["RequestMedia"] = Relationship(back_populates="request")
     payments: List["Payment"] = Relationship(back_populates="request")
-    settlements: List["Settlement"] = Relationship(back_populates="request")
+    # NOTE: ServiceRequest → Settlement 직접 관계 제거 (§4.1 재설계)
+    # 새 경로: ServiceRequest → Payment → SettlementItem → Settlement
 
 class RequestMedia(SQLModel, table=True):
     __tablename__ = "request_media"
@@ -73,7 +77,7 @@ class Payment(SQLModel, table=True):
     request_id: UUID = Field(foreign_key="service_requests.id")
     imp_uid: Optional[str] = Field(default=None)
     merchant_uid: Optional[str] = Field(default=None)
-    amount: float = Field(sa_column=Column(DECIMAL(12, 2)))
+    amount: Decimal = Field(sa_column=Column(DECIMAL(12, 2)))
     method: Optional[str] = None
     status: str = Field(default="PAID")
     paid_at: datetime = Field(default_factory=datetime.utcnow)
@@ -81,36 +85,28 @@ class Payment(SQLModel, table=True):
     request: ServiceRequest = Relationship(back_populates="payments")
 
 class Settlement(SQLModel, table=True):
+    """주기별 × 지사별 정산 헤더 (plan_phase4.1)
+
+    period_start/period_end로 정의된 기간의 결제 집계.
+    주기는 settlement_cycle 설정에 따라 결정되며, 과거 정산은 자기 기간을 그대로 유지.
+    """
     __tablename__ = "settlements"
     id: UUID = Field(default_factory=uuid4, primary_key=True)
-    branch_id: UUID = Field(foreign_key="branches.id")
-    request_id: UUID = Field(foreign_key="service_requests.id")
-    total_amount: float = Field(sa_column=Column(DECIMAL(12, 2)))
-    hq_commission: float = Field(sa_column=Column(DECIMAL(12, 2)))
-    branch_settlement_amount: float = Field(sa_column=Column(DECIMAL(12, 2)))
-    status: str = Field(default="PENDING")
-    settled_at: Optional[datetime] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    
-    request: ServiceRequest = Relationship(back_populates="settlements")
+    branch_id: UUID = Field(foreign_key="branches.id", index=True)
 
-class AuditLog(SQLModel, table=True):
-    __tablename__ = "audit_logs"
-    id: UUID = Field(default_factory=uuid4, primary_key=True)
-    table_name: str = Field(index=True)
-    target_id: UUID = Field(index=True)
-    action: str = Field(index=True) # INSERT, UPDATE, DELETE
-    payload: Optional[dict] = Field(default_factory=dict, sa_column=Column(JSON))
-    changed_by: Optional[str] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    # 기간 정의 — 주기 무관
+    period_start: date = Field(sa_column=Column(Date, index=True))  # 포함
+    period_end: date = Field(sa_column=Column(Date, index=True))    # 포함
+    period_type: str = Field(default="WEEKLY", index=True)  # WEEKLY|BIWEEKLY|MONTHLY|CUSTOM
 
-class DeviceToken(SQLModel, table=True):
-    __tablename__ = "device_tokens"
-    id: UUID = Field(default_factory=uuid4, primary_key=True)
-    user_id: Optional[UUID] = Field(default=None, index=True) # 지사 ID 또는 식당 ID
-    user_type: str = Field(default="MANAGER", index=True) # MANAGER, RESTAURANT
-    token: str = Field(index=True, unique=True)
-    platform: str # android, ios, web
-    is_active: bool = Field(default=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    # 집계 금액 (VAT 포함 원화 기준)
+    gross_amount: Decimal = Field(default=Decimal("0"), sa_column=Column(DECIMAL(14, 2)))
+    vat_amount: Decimal = Field(default=Decimal("0"), sa_column=Column(DECIMAL(14, 2)))
+    commission_rate: Decimal = Field(default=Decimal("0"), sa_column=Column(DECIMAL(5, 2)))
+    hq_commission: Decimal = Field(default=Decimal("0"), sa_column=Column(DECIMAL(14, 2)))
+    branch_amount: Decimal = Field(default=Decimal("0"), sa_column=Column(DECIMAL(14, 2)))
+    refund_offset: Decimal = Field(default=Decimal("0"), sa_column=Column(DECIMAL(14, 2)))
+    net_amount: Decimal = Field(default=Decimal("0"), sa_column=Column(DECIMAL(14, 2)))
+
+    # 상태
+    status: str = Fiel

@@ -29,9 +29,10 @@ def get_branch_performance(session: Session = Depends(get_session)):
         ).one()
         
         # 지사별 총 매출액 및 본사 수수료 계산 (Settlement 테이블 기준)
+        # §4.1 재설계: Settlement.total_amount → Settlement.gross_amount
         revenue_data = session.exec(
             select(
-                func.sum(Settlement.total_amount).label("total_revenue"),
+                func.sum(Settlement.gross_amount).label("total_revenue"),
                 func.sum(Settlement.hq_commission).label("total_commission")
             )
             .where(Settlement.branch_id == b.id)
@@ -155,10 +156,10 @@ def list_branches(
         if not b.is_approved:
             continue
             
-        # 총 매출액 확인
+        # 총 매출액 확인 (§4.1 재설계: total_amount → gross_amount)
         from app.models.domain import Settlement
         revenue_data = session.exec(
-            select(func.sum(Settlement.total_amount))
+            select(func.sum(Settlement.gross_amount))
             .where(Settlement.branch_id == b.id)
         ).first()
         total_rev = float(revenue_data or 0)

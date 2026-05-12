@@ -1,0 +1,164 @@
+﻿수정 대상: alembic/versions/9ef3418df4f2_settlement_redesign_with_items_and_tax_.py
+
+## [1/4] import sqlmodel 추가
+import sqlmodel 추가됨
+
+## [2/4] branches.settlement_cycle에 server_default 추가
+변경 결과 확인:
+    op.add_column('branches', sa.Column('settlement_cycle', sqlmodel.sql.sqltypes.AutoString(), nullable=False, server_default='WEEKLY'))
+    op.drop_column('branches', 'settlement_cycle')
+
+## [3/4] Alembic upgrade head 재시도
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade 64c5a089b10c -> 9ef3418df4f2, settlement redesign with items and tax invoices
+
+현재 리비전:
+9ef3418df4f2 (head)
+
+## [4/4] DB 검증
+--- 테이블 목록 ---
+              List of relations
+ Schema |       Name       | Type  |  Owner  
+--------+------------------+-------+---------
+ public | alembic_version  | table | whiteon
+ public | audit_logs       | table | whiteon
+ public | branches         | table | whiteon
+ public | device_tokens    | table | whiteon
+ public | payments         | table | whiteon
+ public | request_media    | table | whiteon
+ public | restaurants      | table | whiteon
+ public | service_requests | table | whiteon
+ public | settlement_items | table | whiteon
+ public | settlements      | table | whiteon
+ public | tax_invoices     | table | whiteon
+(11 rows)
+
+
+--- settlements 컬럼 ---
+                           Table "public.settlements"
+     Column      |            Type             | Collation | Nullable | Default 
+-----------------+-----------------------------+-----------+----------+---------
+ id              | uuid                        |           | not null | 
+ branch_id       | uuid                        |           | not null | 
+ period_start    | date                        |           |          | 
+ period_end      | date                        |           |          | 
+ period_type     | character varying           |           | not null | 
+ gross_amount    | numeric(14,2)               |           |          | 
+ vat_amount      | numeric(14,2)               |           |          | 
+ commission_rate | numeric(5,2)                |           |          | 
+ hq_commission   | numeric(14,2)               |           |          | 
+ branch_amount   | numeric(14,2)               |           |          | 
+ refund_offset   | numeric(14,2)               |           |          | 
+ net_amount      | numeric(14,2)               |           |          | 
+ status          | character varying           |           | not null | 
+ created_at      | timestamp without time zone |           | not null | 
+ approved_at     | timestamp without time zone |           |          | 
+ paid_at         | timestamp without time zone |           |          | 
+ invoiced_at     | timestamp without time zone |           |          | 
+ approved_by     | character varying           |           |          | 
+ notes           | text                        |           |          | 
+Indexes:
+    "settlements_pkey" PRIMARY KEY, btree (id)
+    "ix_settlements_branch_id" btree (branch_id)
+    "ix_settlements_period_end" btree (period_end)
+    "ix_settlements_period_start" btree (period_start)
+    "ix_settlements_period_type" btree (period_type)
+    "ix_settlements_status" btree (status)
+Foreign-key constraints:
+    "settlements_branch_id_fkey" FOREIGN KEY (branch_id) REFERENCES branches(id)
+Referenced by:
+    TABLE "settlement_items" CONSTRAINT "settlement_items_settlement_id_fkey" FOREIGN KEY (settlement_id) REFERENCES settlements(id)
+    TABLE "tax_invoices" CONSTRAINT "tax_invoices_settlement_id_fkey" FOREIGN KEY (settlement_id) REFERENCES settlements(id)
+
+
+--- settlement_items 컬럼 ---
+                       Table "public.settlement_items"
+    Column     |            Type             | Collation | Nullable | Default 
+---------------+-----------------------------+-----------+----------+---------
+ id            | uuid                        |           | not null | 
+ settlement_id | uuid                        |           | not null | 
+ payment_id    | uuid                        |           |          | 
+ item_type     | character varying           |           | not null | 
+ amount        | numeric(14,2)               |           |          | 
+ description   | text                        |           |          | 
+ created_at    | timestamp without time zone |           | not null | 
+Indexes:
+    "settlement_items_pkey" PRIMARY KEY, btree (id)
+    "ix_settlement_items_item_type" btree (item_type)
+    "ix_settlement_items_payment_id" btree (payment_id)
+    "ix_settlement_items_settlement_id" btree (settlement_id)
+Foreign-key constraints:
+    "settlement_items_payment_id_fkey" FOREIGN KEY (payment_id) REFERENCES payments(id)
+    "settlement_items_settlement_id_fkey" FOREIGN KEY (settlement_id) REFERENCES settlements(id)
+
+
+--- tax_invoices 컬럼 ---
+                              Table "public.tax_invoices"
+         Column         |            Type             | Collation | Nullable | Default 
+------------------------+-----------------------------+-----------+----------+---------
+ id                     | uuid                        |           | not null | 
+ settlement_id          | uuid                        |           | not null | 
+ popbill_mgt_key        | character varying           |           | not null | 
+ popbill_ntsconfirm_num | character varying           |           |          | 
+ invoice_type           | character varying           |           | not null | 
+ original_invoice_id    | uuid                        |           |          | 
+ supply_amount          | numeric(14,2)               |           |          | 
+ tax_amount             | numeric(14,2)               |           |          | 
+ total_amount           | numeric(14,2)               |           |          | 
+ status                 | character varying           |           | not null | 
+ issued_at              | timestamp without time zone |           |          | 
+ error_message          | text                        |           |          | 
+ retry_count            | integer                     |           | not null | 
+ created_at             | timestamp without time zone |           | not null | 
+ updated_at             | timestamp without time zone |           | not null | 
+Indexes:
+    "tax_invoices_pkey" PRIMARY KEY, btree (id)
+    "ix_tax_invoices_popbill_mgt_key" UNIQUE, btree (popbill_mgt_key)
+    "ix_tax_invoices_settlement_id" btree (settlement_id)
+Foreign-key constraints:
+    "tax_invoices_original_invoice_id_fkey" FOREIGN KEY (original_invoice_id) REFERENCES tax_invoices(id)
+    "tax_invoices_settlement_id_fkey" FOREIGN KEY (settlement_id) REFERENCES settlements(id)
+Referenced by:
+    TABLE "tax_invoices" CONSTRAINT "tax_invoices_original_invoice_id_fkey" FOREIGN KEY (original_invoice_id) REFERENCES tax_invoices(id)
+
+
+--- branches.settlement_cycle 컬럼 + 기존 row 값 ---
+   column_name    |     data_type     |       column_default        | is_nullable 
+------------------+-------------------+-----------------------------+-------------
+ settlement_cycle | character varying | 'WEEKLY'::character varying | NO
+(1 row)
+
+                  id                  |   name   | settlement_cycle 
+--------------------------------------+----------+------------------
+ afdcbb6b-2dfb-4de8-887a-b7889fc9abca | 의정부   | WEEKLY
+ 762db42f-2b8b-4b0b-a404-101be1798771 | 강남지사 | WEEKLY
+ 5f8a4ec9-0322-4cdd-8c89-64cddfd5bd92 | 수원지사 | WEEKLY
+(3 rows)
+
+
+## 백엔드 재기동
+● washercrm-backend.service - WasherCRM FastAPI Backend
+     Loaded: loaded (/etc/systemd/system/washercrm-backend.service; enabled; vendor preset: enabled)
+     Active: active (running) since Tue 2026-05-12 14:07:58 UTC; 4s ago
+   Main PID: 46722 (python)
+      Tasks: 6 (limit: 1071)
+     Memory: 73.5M
+        CPU: 1.212s
+     CGroup: /system.slice/washercrm-backend.service
+             └─46722 /home/ubuntu/backend/venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+
+
+--- API 호출 ---
+GET /api/v1/branches/    → HTTP 200
+GET /api/v1/restaurants/ → HTTP 200
+GET /api/v1/payments/    → HTTP 200
+
+--- 백엔드 에러 검색 ---
+DB Repair Error: (psycopg2.errors.NotNullViolation) null value in column "request_id" of relation "payments" violates not-null constraint
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+⚠️  위 에러 라인 확인 필요
+
+====================================================
+✅ 마이그레이션 수정 + 재적용 완료
+====================================================

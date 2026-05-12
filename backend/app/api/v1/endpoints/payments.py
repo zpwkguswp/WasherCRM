@@ -97,28 +97,10 @@ async def verify_payment(
     )
     session.add(new_payment)
     
-    # 5. 자동 정산 데이터 생성
-    # 요청 건을 통해 배정된 지사 정보를 가져옵니다.
-    service_request = session.get(ServiceRequest, data.request_id)
-    if service_request and service_request.assigned_branch_id:
-        from app.models.domain import Branch, Settlement
-        branch = session.get(Branch, service_request.assigned_branch_id)
-        
-        amount = float(payment_data["amount"])
-        commission_rate = branch.commission_rate if branch else 0.0
-        
-        hq_comm = amount * (commission_rate / 100.0)
-        branch_amount = amount - hq_comm
-        
-        new_settlement = Settlement(
-            branch_id=service_request.assigned_branch_id,
-            request_id=data.request_id,
-            total_amount=amount,
-            hq_commission=hq_comm,
-            branch_settlement_amount=branch_amount,
-            status="PENDING"
-        )
-        session.add(new_settlement)
+    # 5. (DEPRECATED §4.1) 결제마다 Settlement를 즉시 생성하던 로직 제거.
+    # 새 설계는 주기 단위(주차/월/격주) 배치로 Settlement를 생성하고,
+    # 각 결제는 SettlementItem 후보로 표시됨.
+    # TODO §4.2: 정산 계산 알고리즘 + 주기 배치 작업 구현 시 활성화.
 
     # 감사 로그 기록
     log = AuditLog(
