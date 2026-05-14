@@ -10,6 +10,17 @@
 - [x] HQ 대시보드 성과 지표 소수점 포맷팅 최적화
 - [x] 불필요한 대용량 파일 정리 및 용량 확보
 
+## 🚨 Phase 0.5: SLA 측정 시스템 (긴급 백로그 — Phase 1과 병행)
+> [!IMPORTANT]
+> 현재 `backend/app/api/v1/endpoints/requests.py:175-176`은 `assigned_at` 타임스탬프만 기록하며, 경과시간 계산·HQ 조회용 엔드포인트·임계치 경고 로직이 전부 없음. `harnes.md` 금기사항 #4를 직접적으로 위반하는 상태. 인증 시스템(Phase 1) 작업 중 함께 마무리할 것.
+
+- [ ] **[AI/backend-db]** `service_requests`에 `acknowledged_at` 필드 추가 (push 수신 vs 수락 분리 측정용) — Alembic migration 포함
+- [ ] **[AI/backend-db]** SLA 계산 헬퍼: `(assigned_at − created_at)`, `(completed_at − assigned_at)` 컬럼 또는 view 제공
+- [ ] **[AI/backend-db]** `GET /api/v1/requests/sla` HQ 전용 엔드포인트 — 지사별/지역별/카테고리별 평균·중위·90분위 SLA 반환
+- [ ] **[AI/backend-db]** SLA 임계치(예: 30분) 초과 시 `AuditLog`에 자동 경고 이벤트 기록
+- [ ] **[AI/frontend-mobile]** `www/hq.html`에 SLA 현황 카드 + 임계치 초과 건 리스트 표시
+- [ ] **[AI/qa-analyst]** SLA 측정 회귀 테스트: 접수 → 배정 → 완료 시나리오에서 타임스탬프 누락이 발생하면 fail
+
 ## 🔐 Phase 1: 보안 및 인증 시스템 (진행 예정)
 - [ ] **[AI]** 통합 로그인 페이지 UI 디자인 및 개발 (`/login.html`)
 - [ ] **[AI]** JWT 기반 인증 시스템 및 권한(Admin, Branch, Restaurant) 분리 로직
