@@ -222,21 +222,8 @@ def update_request(request_id: UUID, data: RequestUpdate, session: Session = Dep
             )
             session.add(new_payment)
             
-            # 2. 지사 정산 데이터 생성
-            if db_request.assigned_branch_id:
-                branch = session.get(Branch, db_request.assigned_branch_id)
-                rate = branch.commission_rate if branch else 10.0
-                hq_comm = amount * (rate / 100.0)
-                new_settlement = Settlement(
-                    branch_id=db_request.assigned_branch_id,
-                    request_id=db_request.id,
-                    total_amount=amount,
-                    hq_commission=hq_comm,
-                    branch_settlement_amount=amount - hq_comm,
-                    status="COMPLETED",
-                    settled_at=datetime.utcnow()
-                )
-                session.add(new_settlement)
+            # 2. (DEPRECATED §4.1) 요청 완료 시 Settlement를 즉시 생성하던 로직 제거.
+            # 새 설계는 주기 단위 배치로 Settlement를 생성. §4.2에서 구현 예정.
     
     db_request.updated_at = datetime.utcnow()
     session.add(db_request)

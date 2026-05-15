@@ -1,7 +1,8 @@
-from datetime import datetime
+from datetime import datetime, date
+from decimal import Decimal
 from typing import Optional, List
 from uuid import UUID, uuid4
-from sqlalchemy import Column, DateTime, String, Text, DECIMAL, Float, JSON
+from sqlalchemy import Column, DateTime, Date, String, Text, DECIMAL, Float, JSON
 from sqlmodel import SQLModel, Field, Relationship
 
 class Branch(SQLModel, table=True):
@@ -16,8 +17,10 @@ class Branch(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     tier: str = Field(default="BRONZE") # BRONZE, SILVER, GOLD, DIAMOND
-    
+    settlement_cycle: str = Field(default="WEEKLY") # WEEKLY, BIWEEKLY, MONTHLY, CUSTOM
+
     requests: List["ServiceRequest"] = Relationship(back_populates="branch")
+    settlements: List["Settlement"] = Relationship(back_populates="branch")
 
 class Restaurant(SQLModel, table=True):
     __tablename__ = "restaurants"
@@ -54,7 +57,8 @@ class ServiceRequest(SQLModel, table=True):
     restaurant: Restaurant = Relationship(back_populates="requests")
     media: List["RequestMedia"] = Relationship(back_populates="request")
     payments: List["Payment"] = Relationship(back_populates="request")
-    settlements: List["Settlement"] = Relationship(back_populates="request")
+    # NOTE: ServiceRequest → Settlement 직접 관계 제거 (§4.1 재설계)
+    # 새 경로: ServiceRequest → Payment → SettlementItem → Settlement
 
 class RequestMedia(SQLModel, table=True):
     __tablename__ = "request_media"
@@ -73,7 +77,7 @@ class Payment(SQLModel, table=True):
     request_id: UUID = Field(foreign_key="service_requests.id")
     imp_uid: Optional[str] = Field(default=None)
     merchant_uid: Optional[str] = Field(default=None)
-    amount: float = Field(sa_column=Column(DECIMAL(12, 2)))
+    amount: Decimal = Field(sa_column=Column(DECIMAL(12, 2)))
     method: Optional[str] = None
     status: str = Field(default="PAID")
     paid_at: datetime = Field(default_factory=datetime.utcnow)
@@ -81,18 +85,96 @@ class Payment(SQLModel, table=True):
     request: ServiceRequest = Relationship(back_populates="payments")
 
 class Settlement(SQLModel, table=True):
+    """주기별 × 지사별 정산 헤더 (plan_phase4.1)
+
+    period_start/period_end로 정의된 기간의 결제 집계.
+    주기는 settlement_cycle 설정에 따라 결정되며, 과거 정산은 자기 기간을 그대로 유지.
+    """
     __tablename__ = "settlements"
     id: UUID = Field(default_factory=uuid4, primary_key=True)
-    branch_id: UUID = Field(foreign_key="branches.id")
-    request_id: UUID = Field(foreign_key="service_requests.id")
-    total_amount: float = Field(sa_column=Column(DECIMAL(12, 2)))
-    hq_commission: float = Field(sa_column=Column(DECIMAL(12, 2)))
-    branch_settlement_amount: float = Field(sa_column=Column(DECIMAL(12, 2)))
-    status: str = Field(default="PENDING")
-    settled_at: Optional[datetime] = None
+    branch_id: UUID = Field(foreign_key="branches.id", index=True)
+
+    # 기간 정의 — 주기 무관
+    period_start: date = Field(sa_column=Column(Date, index=True))  # 포함
+    period_end: date = Field(sa_column=Column(Date, index=True))    # 포함
+    period_type: str = Field(default="WEEKLY", index=True)  # WEEKLY|BIWEEKLY|MONTHLY|CUSTOM
+
+    # 집계 금액 (VAT 포함 원화 기준)
+    gross_amount: Decimal = Field(default=Decimal("0"), sa_column=Column(DECIMAL(14, 2)))
+    vat_amount: Decimal = Field(default=Decimal("0"), sa_column=Column(DECIMAL(14, 2)))
+    commission_rate: Decimal = Field(default=Decimal("0"), sa_column=Column(DECIMAL(5, 2)))
+    hq_commission: Decimal = Field(default=Decimal("0"), sa_column=Column(DECIMAL(14, 2)))
+    branch_amount: Decimal = Field(default=Decimal("0"), sa_column=Column(DECIMAL(14, 2)))
+    refund_offset: Decimal = Field(default=Decimal("0"), sa_column=Column(DECIMAL(14, 2)))
+    net_amount: Decimal = Field(default=Decimal("0"), sa_column=Column(DECIMAL(14, 2)))
+
+    # 상태
+    status: str = Field(default="DRAFT", index=True)  # DRAFT|REVIEW|APPROVED|PAID|INVOICED|HOLD
+
+    # 타임스탬프
     created_at: datetime = Field(default_factory=datetime.utcnow)
-    
-    request: ServiceRequest = Relationship(back_populates="settlements")
+    approved_at: Optional[datetime] = None
+    paid_at: Optional[datetime] = None
+    invoiced_at: Optional[datetime] = None
+
+    # 감사
+    approved_by: Optional[str] = None
+    notes: Optional[str] = Field(default=None, sa_column=Column(Text))
+
+    branch: Branch = Relationship(back_populates="settlements")
+    items: List["SettlementItem"] = Relationship(back_populates="settlement")
+    tax_invoices: List["TaxInvoice"] = Relationship(
+        back_populates="settlement",
+        sa_relationship_kwargs={"foreign_keys": "[TaxInvoice.settlement_id]"}
+    )
+
+
+class SettlementItem(SQLModel, table=True):
+    """정산 라인 아이템 — 개별 결제/환불 1건"""
+    __tablename__ = "settlement_items"
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    settlement_id: UUID = Field(foreign_key="settlements.id", index=True)
+    payment_id: Optional[UUID] = Field(default=None, foreign_key="payments.id", index=True)
+
+    item_type: str = Field(index=True)  # SERVICE|PARTS|DETERGENT|REFUND_OFFSET
+    amount: Decimal = Field(sa_column=Column(DECIMAL(14, 2)))  # 음수 허용 (환불)
+    description: Optional[str] = Field(default=None, sa_column=Column(Text))
+
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    settlement: Settlement = Relationship(back_populates="items")
+
+
+class TaxInvoice(SQLModel, table=True):
+    """전자세금계산서 발행 이력 (Popbill 연동)"""
+    __tablename__ = "tax_invoices"
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    settlement_id: UUID = Field(foreign_key="settlements.id", index=True)
+
+    # Popbill
+    popbill_mgt_key: str = Field(unique=True, index=True)  # 우리 발급 관리번호
+    popbill_ntsconfirm_num: Optional[str] = None  # 국세청 승인번호
+
+    invoice_type: str = Field(default="NORMAL")  # NORMAL|MODIFY
+    original_invoice_id: Optional[UUID] = Field(default=None, foreign_key="tax_invoices.id")
+
+    supply_amount: Decimal = Field(sa_column=Column(DECIMAL(14, 2)))  # 공급가액
+    tax_amount: Decimal = Field(sa_column=Column(DECIMAL(14, 2)))     # 세액
+    total_amount: Decimal = Field(sa_column=Column(DECIMAL(14, 2)))   # 합계
+
+    status: str = Field(default="PENDING")  # PENDING|ISSUED|FAILED|CANCELLED
+    issued_at: Optional[datetime] = None
+
+    error_message: Optional[str] = Field(default=None, sa_column=Column(Text))
+    retry_count: int = Field(default=0)
+
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    settlement: Settlement = Relationship(
+        back_populates="tax_invoices",
+        sa_relationship_kwargs={"foreign_keys": "[TaxInvoice.settlement_id]"}
+    )
 
 class AuditLog(SQLModel, table=True):
     __tablename__ = "audit_logs"

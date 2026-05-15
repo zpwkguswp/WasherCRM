@@ -50,7 +50,7 @@ async def admin_page():
 # 각 앱 전용 라우트
 @app.get("/hq", response_class=HTMLResponse)
 async def hq_page():
-    return FileResponse(os.path.join(www_dir, "hq.html"))
+    return FileResponse(os.path.join(www_dir, "admin.html"))
 
 @app.get("/manager", response_class=HTMLResponse)
 async def manager_page():

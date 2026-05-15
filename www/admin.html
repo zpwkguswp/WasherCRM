@@ -90,9 +90,31 @@
             .filter-group { gap: 10px; }
             .filter-item input { width: 100%; }
         }
+
+        /* 본사 로그인 화면 (Phase 3.2a) */
+        .login-overlay { display: none; position: fixed; inset: 0; background: var(--primary); z-index: 5000; align-items: center; justify-content: center; padding: 20px; }
+        .login-card { background: white; border-radius: 24px; padding: 40px 32px; width: 340px; max-width: 100%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.4); text-align: center; }
+        .login-card img { width: 130px; margin-bottom: 8px; }
+        .login-card h2 { font-size: 1.15rem; margin: 10px 0 24px; font-weight: 800; }
+        .login-card input { width: 100%; padding: 13px; margin-bottom: 12px; border: 1px solid var(--border); border-radius: 10px; font-size: 0.95rem; outline: none; }
+        .login-card input:focus { border-color: var(--accent); }
+        .login-card button { width: 100%; padding: 14px; background: var(--accent); color: white; border: none; border-radius: 10px; font-weight: 700; font-size: 0.95rem; cursor: pointer; margin-top: 6px; }
+        .login-error { display: none; color: var(--danger); font-size: 0.8rem; margin-bottom: 10px; font-weight: 700; }
     </style>
 </head>
 <body>
+
+    <!-- 본사 관리자 로그인 (Phase 3.2a) -->
+    <div id="login-overlay" class="login-overlay">
+        <div class="login-card">
+            <img src="/static/logo.png" alt="WhiteOn">
+            <h2>본사 관리자 로그인</h2>
+            <input type="text" id="login-username" placeholder="아이디" autocomplete="username">
+            <input type="password" id="login-password" placeholder="비밀번호" autocomplete="current-password" onkeydown="if(event.key==='Enter') app.login()">
+            <div id="login-error" class="login-error"></div>
+            <button onclick="app.login()">로그인</button>
+        </div>
+    </div>
 
     <div class="sidebar" id="sidebar">
         <div class="logo-section" onclick="app.showPage('dashboard')" style="cursor:pointer;"><img src="/static/logo.png" alt="WhiteOn"></div>
@@ -110,7 +132,10 @@
                 <div class="menu-toggle" onclick="app.toggleSidebar()"><i class="fas fa-bars"></i></div>
                 <div style="font-weight: 900; color: var(--primary); font-size: 1.1rem;">WhiteOn HQ Control</div>
             </div>
-            <div style="display:flex; align-items:center; gap:12px;"><i class="fas fa-user-circle" style="font-size: 1.7rem; color: var(--text-light);"></i></div>
+            <div style="display:flex; align-items:center; gap:10px;">
+                <span style="font-size:0.8rem; color:var(--text-light); font-weight:700;"><i class="fas fa-user-circle"></i> 본사 관리자</span>
+                <button class="btn btn-secondary btn-sm" onclick="app.logout()"><i class="fas fa-right-from-bracket"></i> 로그아웃</button>
+            </div>
         </div>
         
         <div class="content-area">
@@ -208,6 +233,28 @@
 
     <script>
         const API_BASE = "/api/v1";
+        const TOKEN_KEY = "hq_token";
+
+        // 본사 로그인 토큰을 모든 API 호출에 자동 첨부 (Phase 3.2a).
+        // 기존 fetch 호출을 일일이 수정하지 않도록 window.fetch를 한 번만 감싼다.
+        const _origFetch = window.fetch.bind(window);
+        window.fetch = function(url, options) {
+            options = options || {};
+            const u = (typeof url === 'string') ? url : '';
+            const isApi = u.indexOf(API_BASE) !== -1;
+            const isLogin = u.indexOf('/auth/login') !== -1;
+            const token = localStorage.getItem(TOKEN_KEY);
+            if (token && isApi && !isLogin) {
+                options.headers = Object.assign({}, options.headers, { 'Authorization': 'Bearer ' + token });
+            }
+            return _origFetch(url, options).then(function(res) {
+                if (res.status === 401 && isApi && !isLogin) {
+                    app.logout();
+                }
+                return res;
+            });
+        };
+
         const app = {
             cache: { branches: [], restaurants: [], requests: [] }, charts: {},
             showPage(id) { 
@@ -408,9 +455,50 @@
                     <div style="display:flex; gap:8px; overflow-x:auto; padding-bottom:10px;">${(r.media || []).map((file, idx) => `<div style="position:relative; min-width:100px;"><img src="${file.file_url}" style="height:100px; width:100px; border-radius:12px; object-fit:cover; border:1px solid var(--border); cursor:pointer;" onclick="window.open(this.src)"><div style="position:absolute; bottom:5px; left:5px; right:5px; background:rgba(0,0,0,0.6); color:white; font-size:0.6rem; text-align:center; border-radius:4px; padding:2px;">${idx === 0 ? '📸 접수' : '🛠️ 완료'}</div></div>`).join('') || '<p style="font-size:0.7rem; color:#94a3b8;">사진 없음</p>'}</div>
                 `;
                 document.getElementById('common-modal').classList.add('active');
+            },
+
+            // --- 본사 로그인 (Phase 3.2a) ---
+            init() {
+                if (localStorage.getItem(TOKEN_KEY)) {
+                    document.getElementById('login-overlay').style.display = 'none';
+                    this.showPage('dashboard');
+                } else {
+                    document.getElementById('login-overlay').style.display = 'flex';
+                }
+            },
+            async login() {
+                const username = document.getElementById('login-username').value.trim();
+                const password = document.getElementById('login-password').value;
+                const errEl = document.getElementById('login-error');
+                errEl.style.display = 'none';
+                try {
+                    const res = await _origFetch(`${API_BASE}/auth/login`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username, password })
+                    });
+                    if (!res.ok) {
+                        errEl.innerText = '아이디 또는 비밀번호가 올바르지 않습니다.';
+                        errEl.style.display = 'block';
+                        return;
+                    }
+                    const data = await res.json();
+                    localStorage.setItem(TOKEN_KEY, data.access_token);
+                    document.getElementById('login-password').value = '';
+                    document.getElementById('login-overlay').style.display = 'none';
+                    this.showPage('dashboard');
+                } catch (e) {
+                    errEl.innerText = '로그인 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.';
+                    errEl.style.display = 'block';
+                }
+            },
+            logout() {
+                localStorage.removeItem(TOKEN_KEY);
+                document.getElementById('login-error').style.display = 'none';
+                document.getElementById('login-overlay').style.display = 'flex';
             }
         };
-        app.showPage('dashboard');
+        app.init();
     </script>
 </body>
 </html>

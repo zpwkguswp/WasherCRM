@@ -156,5 +156,104 @@
 
 ---
 
+## 6. 현재 운영 상태 점검 (2026-05-15 기준)
+
+신규 합류 AI(또는 차후 세션)가 작업을 이어받기 전에 반드시 확인해야 할 **실제 인프라 상태**와 **계획서와의 차이점**입니다. 계획만 보고 작업하면 충돌이 발생합니다.
+
+### 6.1 AWS 인프라 현황과 격차
+- **EC2**: `13.124.100.75` (t3.micro, Ubuntu 22.04 LTS) — 운영 중. 백엔드는 systemd로 관리(2026-05-12~, 재부팅 자동 복구).
+- **DB ✅ 해소됨**: 2026-05-12에 EC2 내 **네이티브 PostgreSQL 14**로 통일(SQLite에서 데이터 19건 이관 완료). blueprint §3.2의 RDS 안은 채택하지 않음 — t3.micro 메모리 제약 때문에 RDS 대신 네이티브 PostgreSQL 채택(`decision_log.md` ADR-003). RDS는 결제 트래픽 시점에 재검토. SQLite 백업은 서버에 보관 중.
+- **인스턴스 사이즈 격차 ⚠️**: t3.micro(1GB RAM)는 결제 콜백 + WebSocket + Nginx 동시 운영에 부족. 결제 모듈 도입 시점에 최소 t3.small, 권장 t3.medium으로 업그레이드.
+- **HTTPS/도메인 미적용 ⚠️**: 도메인 `whiteon.kr`은 2026-05-12에 확보했으나 아직 서버에 연결되지 않음. 현재 Public IP로만 접근 중. Route 53 + ACM(또는 certbot) + Nginx 작업 필요. 포트원 결제 심사는 도메인 + HTTPS + 푸터 필수정보 노출이 통과 조건.
+- **포트 개방 현황 ✅ 정리됨**: 외부에는 22, 80, 443만 개방. 8000은 2026-05-12 보안 강화 때 보안 그룹(SG)에서 차단했고 uvicorn은 `127.0.0.1`로 바인딩됨.
+
+### 6.2 사람 트랙 진행 현황 (human_preparation_guide.md 참조)
+사장님 명의로 진행 중인 행정 작업들. **AI는 이 항목들의 완료 여부에 따라 다음 단계 착수 가능 여부를 판단해야 함.**
+- [ ] 통신판매업 신고 (정부24, 아버님 명의) — *진행 중*
+- [ ] 전자세금계산서용 인증서 발급 (주거래 은행, 법인/대표자 명의) — *진행 중*
+- [x] 도메인 구매 — `whiteon.kr` 확보 완료 (2026-05-12)
+- [x] AWS 계정 (결제수단 등록 완료)
+- [ ] 포트원(PortOne) 가입 및 심사 (결제 + 본인인증) — *진행 중*
+- [ ] 팝빌(Popbill) 가입 및 인증서 등록 — *진행 중*
+
+### 6.3 격차 해소를 위한 우선 조치
+1. ✅ **DB 통일 완료** (2026-05-12, EC2 네이티브 PostgreSQL).
+2. Route 53 + ACM + Nginx(certbot)로 **HTTPS 적용** — 포트원 심사 통과 조건. 도메인은 이미 확보됨.
+3. 푸터에 사업자정보·통신판매업 신고번호·이용약관·개인정보처리방침 링크 노출.
+
+---
+
+## 7. 정산·회계·세무 자동화 모듈 상세 설계
+
+Phase 2~3에서 구현할 핵심 모듈입니다. **잘못 짜면 추후 수정이 매우 어려운 영역**이므로 사전 설계를 명시합니다.
+
+### 7.1 정산(Settlement) 데이터 모델 (요지)
+- `settlements` (id, branch_id, period_start, period_end, gross_amount, commission_amount, vat_amount, net_amount, status, approved_at, paid_at)
+  - status: `DRAFT` → `REVIEW` → `APPROVED` → `PAID` → `INVOICED`
+- `settlement_items` (id, settlement_id, payment_id, type[`SERVICE`|`PARTS`|`DETERGENT`|`REFUND_OFFSET`], amount)
+- `tax_invoices` (id, settlement_id, popbill_mgt_key, issued_at, status, original_invoice_id) — `original_invoice_id`가 NOT NULL이면 수정세금계산서
+
+### 7.2 정산 비즈니스 규칙 (필수 케이스)
+- **부가세 처리**: 결제 금액은 부가세 포함(VAT-inclusive) 수신. 정산 시 net_amount = gross_amount × (1 - commission_rate). 세금계산서 발행은 net_amount 기준의 별도 공급가액/세액 분리 표시.
+- **환불·부분환불 처리**: 정산 확정 후 발생한 환불은 다음 정산 주기에 `REFUND_OFFSET` 항목으로 차감 반영. 누적 차감으로 음수 정산이 발생하면 시스템이 보류(`HOLD`) 상태로 두고 본사 승인 후 차회 이월.
+- **수정세금계산서**: 환불·금액 변동 발생 시 Popbill API의 수정세금계산서 발행 흐름을 자동 트리거. 원본 invoice_id를 반드시 연결.
+- **정산 주기**: 주 단위(월~일 마감, 익주 화요일 지급) 기본. 운영 안정화 후 월 단위 옵션 추가 가능하도록 `period_type` 컬럼 확장 여지 확보.
+
+### 7.3 PG/세무 외부 연동 흐름
+- **포트원 결제**: 클라이언트 결제 → 포트원 webhook → 백엔드 검증(amount·imp_uid) → `payments.status = PAID`. 검증 실패 시 즉시 환불 자동화.
+- **포트원 본인인증(PASS)**: 가입 시 식당 사장 / 지사 매니저 본인확인 → 휴대폰·생년월일 일치 검증 → `users.is_verified = true`.
+- **팝빌 세금계산서**: 정산 `APPROVED` 시 발행 큐에 적재 → 비동기 워커가 Popbill API 호출 → 결과 webhook 또는 폴링 → `tax_invoices.status = ISSUED`. 실패 시 3회 재시도 후 본사 알림.
+
+### 7.4 회계 시스템 연계 (참고)
+- 1차 목표: 월말 회계 마감용 CSV/Excel 리포트 자동 생성(매출, 수수료, VAT, 지사별 정산 집계).
+- 2차 목표(선택): 더존/이카운트 등 외부 회계 SW와 API/CSV 인터페이스. 사장님이 사용하시는 회계 프로그램이 결정되면 그에 맞게 설계.
+
+### 7.5 분쟁·감사 대응
+- 모든 정산·결제·세금계산서 발행 이벤트는 `AuditLog`에 변경 전/후 payload(JSONB) 기록. (`plan_phase1.2.1_versioning_logging.md` 체계 활용)
+- 정산서 PDF 스냅샷을 S3에 보관(법적 보관 5년).
+
+---
+
+## 8. 에이전트(Agent) 활용 전략
+
+Claude Agent SDK 기반의 백엔드 워커 형태로 구현. 처음부터 다 만들지 말고 **(1)번부터 단계적으로 도입**.
+
+### 8.1 우선순위별 에이전트 목록
+1. **정산 검토 에이전트 (최우선)**: 매주 정산 확정 직전 자동 실행. 지사별 매출/수수료/VAT 계산 검증, 이상치(평균 대비 ±3σ) 탐지, 환불 미반영 검출. 결과를 사장님 카톡/대시보드에 "이상 없음 / N건 확인 필요" 형태로 요약.
+2. **A/S 접수 분류·우선순위 에이전트**: 식당이 올린 사진+짧은 텍스트를 분석해 긴급도(영업 중단 여부) 판단, 필요 부품 예측, 적합 지사 자동 매칭. Vision 활용.
+3. **Hotspot 분석 에이전트**: 월/주 단위로 실행. 동일 식당 30일 내 동일 증상 재접수, 특정 지역 같은 부품 다발 고장 등 패턴 보고서 생성.
+4. **세금계산서 발행 검증 에이전트**: Popbill 발행 결과 사후 검증(금액·사업자번호 매칭). 실패 시 재발행 트리거 또는 본사 알림.
+5. **고객 응대 1차 봇**: 카톡채널/앱에서 정형 질의(ETA, 재고, 결제내역) 80% 처리. 비정형 문의만 본사 에스컬레이션. Haiku 권장.
+
+### 8.2 에이전트 구현 가드레일
+- 각 에이전트는 **명시적으로 허용된 도구(read_settlement, send_alert 등)만** 사용. DB 쓰기는 가능한 한 별도 승인 단계 거침.
+- 모든 에이전트 실행 결과는 `AuditLog`에 기록(어떤 도구를 어떤 인자로 호출했는지 포함).
+- 정산·세무 등 금전 관련 에이전트는 **반드시 사람 승인(HQ Dashboard 클릭)** 후 실제 액션 실행. 에이전트는 "초안 생성"까지만.
+
+---
+
+## 9. 모델 사용 정책 (Opus / Sonnet / Haiku)
+
+### 9.1 기본 원칙
+- **일상 개발(CRUD, 화면, 버그픽스, 마이그레이션, 테스트)**: Sonnet 4.6 — 가성비·속도 우수.
+- **아키텍처 설계 및 한 번 잘못 짜면 되돌리기 어려운 결정**: Opus 4.6 — 정산 알고리즘, 권한·인증 흐름, PG/세무 연동 흐름, 에이전트 시스템 프롬프트 설계.
+- **실시간/대량 호출 워커(고객 응대 봇, 단순 분류)**: Haiku 4.5 — 비용·지연시간 최적.
+
+### 9.2 교차검증 규칙
+"이 결정 잘못하면 데이터 다시 깔아야 할 수도 있다" 싶은 순간엔 **Sonnet으로 작업한 결과를 Opus에 한 번 더 던져 리뷰**. 구체적으로:
+- DB 스키마 변경(특히 `payments`, `settlements`, `tax_invoices` 관련)
+- 권한·JWT·본인확인 로직
+- Popbill 세금계산서 발행/수정 흐름
+- 에이전트의 도구 권한 설계
+
+### 9.3 비용 가이드
+- Opus는 Sonnet 대비 약 5배 비용. 위 9.1 분류를 기본으로 따르되, 한 세션 내에서 Opus를 30분 이상 연속 사용 중이라면 작업이 잘못된 방향일 가능성을 의심하고 작업 분해를 재고.
+
+---
+
 ## 관련 문서
-- [이슈 관리 및 금기 사항 (harnes.md)](file:///c:/Users/zpwkg/Documents/WasherCRM/harnes.md)
+- [작업 실행 계획 (workplan.md)](./workplan.md) — Sonnet이 다음 세션에서 보고 바로 실행하는 단계별 체크리스트
+- [작업 진행 현황 (work_schedule.md)](./work_schedule.md)
+- [이슈 관리 및 금기 사항 (harnes.md)](./harnes.md)
+- [사람의 행정 준비 가이드 (human_preparation_guide.md)](./human_preparation_guide.md)
+- [AWS 운영 가이드 (AWS_STARTUP_GUIDE.md)](./AWS_STARTUP_GUIDE.md)

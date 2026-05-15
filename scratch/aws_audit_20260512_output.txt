@@ -1,0 +1,173 @@
+﻿====================================================
+WasherCRM EC2 Audit Report
+Date: 2026-05-12 10:08:49 UTC
+Host: ip-172-31-33-189 / ubuntu
+====================================================
+
+## 1. OS & Resources
+--- uname ---
+Linux ip-172-31-33-189 6.8.0-1053-aws #56~22.04.1-Ubuntu SMP Tue Apr 21 06:13:23 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+--- uptime ---
+ 10:08:49 up 2 days,  6:08,  1 user,  load average: 0.06, 0.02, 0.00
+--- disk (df -h) ---
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/root        29G   11G   19G  36% /
+/dev/root        29G   11G   19G  36% /
+--- memory (free -m) ---
+               total        used        free      shared  buff/cache   available
+Mem:             914         176         368           1         369         564
+Swap:           4095         135        3960
+--- cpu count ---
+2
+
+## 2. Backend Process (uvicorn / fastapi)
+--- ps aux | grep uvicorn ---
+ubuntu     26254  0.0  0.0   7764   796 ?        S    May10   0:00 bash -c cd /home/ubuntu/backend && nohup /home/ubuntu/backend/venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 > uvicorn.log 2>&1 &
+ubuntu     26255  0.1  1.6 287928 15536 ?        Sl   May10   3:25 /home/ubuntu/backend/venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+--- ps aux | grep python ---
+root         418  0.0  0.6  33076  6192 ?        Ss   May10   0:00 /usr/bin/python3 /usr/bin/networkd-dispatcher --run-startup-triggers
+root         527  0.0  0.4 110156  4600 ?        Ssl  May10   0:00 /usr/bin/python3 /usr/share/unattended-upgrades/unattended-upgrade-shutdown --wait-for-signal
+ubuntu     26254  0.0  0.0   7764   796 ?        S    May10   0:00 bash -c cd /home/ubuntu/backend && nohup /home/ubuntu/backend/venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 > uvicorn.log 2>&1 &
+ubuntu     26255  0.1  1.6 287928 15536 ?        Sl   May10   3:25 /home/ubuntu/backend/venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+--- listening ports ---
+State  Recv-Q Send-Q Local Address:Port Peer Address:PortProcess                                                                            
+LISTEN 0      2048         0.0.0.0:8000      0.0.0.0:*    users:(("python",pid=26255,fd=14))                                                
+LISTEN 0      511          0.0.0.0:80        0.0.0.0:*    users:(("nginx",pid=17472,fd=6),("nginx",pid=17471,fd=6),("nginx",pid=17470,fd=6))
+LISTEN 0      128          0.0.0.0:22        0.0.0.0:*    users:(("sshd",pid=631,fd=3))                                                     
+LISTEN 0      4096   127.0.0.53%lo:53        0.0.0.0:*    users:(("systemd-resolve",pid=353,fd=14))                                         
+LISTEN 0      128             [::]:22           [::]:*    users:(("sshd",pid=631,fd=4))                                                     
+
+## 3. Backend Files
+--- /home/ubuntu structure ---
+total 834972
+drwxr-xr-x 9 ubuntu ubuntu      4096 May 10 08:59 .
+drwxr-xr-x 3 root   root        4096 May 10 04:00 ..
+-rw-r--r-- 1 ubuntu ubuntu       220 Jan  6  2022 .bash_logout
+-rw-r--r-- 1 ubuntu ubuntu      3771 Jan  6  2022 .bashrc
+drwx------ 4 ubuntu ubuntu      4096 May 10 08:59 .cache
+drwxrwxr-x 3 ubuntu ubuntu      4096 May 10 08:59 .config
+drwxrwxr-x 5 ubuntu ubuntu      4096 May 10 04:02 .local
+-rw-r--r-- 1 ubuntu ubuntu       807 Jan  6  2022 .profile
+drwx------ 2 ubuntu ubuntu      4096 May 10 04:00 .ssh
+-rw-r--r-- 1 ubuntu ubuntu         0 May 10 04:01 .sudo_as_admin_successful
+drwxrwxr-x 6 ubuntu ubuntu      4096 May 10 13:02 backend
+-rw-rw-r-- 1 ubuntu ubuntu  67912067 May 10 08:20 project.zip
+drwxrwxr-x 8 ubuntu ubuntu      4096 May 11 23:20 trading_bot
+-rw-rw-r-- 1 ubuntu ubuntu 787038003 May 10 08:56 trading_bot.zip
+drwxr-xr-x 3 ubuntu ubuntu      4096 May 10 13:11 www
+--- /home/ubuntu/backend (if exists) ---
+total 332
+drwxrwxr-x  6 ubuntu ubuntu   4096 May 10 13:02 .
+drwxr-xr-x  9 ubuntu ubuntu   4096 May 10 08:59 ..
+-rw-rw-rw-  1 ubuntu ubuntu    204 May 10 08:28 .dockerignore
+-rw-rw-rw-  1 ubuntu ubuntu    232 May 10 09:12 .env
+-rw-rw-rw-  1 ubuntu ubuntu    814 May 10 08:28 Dockerfile
+drwxrwxr-x 11 ubuntu ubuntu   4096 May 10 08:20 app
+-rw-rw-rw-  1 ubuntu ubuntu    107 May 10 08:30 requirements.txt
+-rw-rw-rw-  1 ubuntu ubuntu   2367 Apr 27 10:58 serviceAccountKey.json
+drwxrwxr-x  2 ubuntu ubuntu   4096 May 10 08:20 tests
+-rw-rw-r--  1 ubuntu ubuntu 113355 May 12 07:59 uvicorn.log
+drwxrwxr-x  5 ubuntu ubuntu   4096 May 10 13:02 venv
+drwxrwxr-x  5 ubuntu ubuntu   4096 May 10 08:20 venv_win
+-rw-r--r--  1 ubuntu ubuntu 172032 May 10 09:53 washer_crm.db
+--- backend .env (sensitive lines masked) ---
+DATABASE_URL=sqlite:///washer_crm.db
+PROJECT_NAME=WasherCRM
+VERSION=0.1.0
+
+# PortOne (PG) Settings
+PORTONE_API_KEY=***MASKED***
+PORTONE_API_SECRET=***MASKED***
+
+## 4. Database
+--- SQLite file present? ---
+-rw-r--r-- 1 ubuntu ubuntu 172032 May 10 09:53 /home/ubuntu/backend/washer_crm.db
+--- PostgreSQL service status ---
+inactive
+postgresql system service: inactive or not installed
+--- Postgres process? ---
+--- Docker containers (if any) ---
+(docker not running or not installed)
+--- docker compose files in /home/ubuntu ---
+
+## 5. Nginx / Web Server
+--- nginx status ---
+active
+--- nginx config (washercrm site) ---
+total 16
+drwxr-xr-x 2 root root 4096 May 10 04:02 .
+drwxr-xr-x 8 root root 4096 May 10 04:01 ..
+-rw-r--r-- 1 root root 2412 May 30  2023 default
+-rw-r--r-- 1 root root  405 May 10 08:20 washercrm
+--- enabled sites ---
+total 8
+drwxr-xr-x 2 root root 4096 May 10 08:20 .
+drwxr-xr-x 8 root root 4096 May 10 04:01 ..
+lrwxrwxrwx 1 root root   36 May 10 08:20 washercrm -> /etc/nginx/sites-available/washercrm
+--- nginx config dump (washercrm only) ---
+server {
+    listen 80;
+    server_name _;
+
+    location / {
+        root /home/ubuntu/www;
+        index index.html;
+        try_files $uri $uri/ /index.html;
+    }
+
+    location /api/v1 {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    location /static/ {
+        alias /home/ubuntu/backend/app/static/;
+    }
+}
+
+## 6. Static Frontend
+--- /home/ubuntu/www ---
+total 160
+drwxr-xr-x 3 ubuntu ubuntu  4096 May 10 13:11 .
+drwxr-xr-x 9 ubuntu ubuntu  4096 May 10 08:59 ..
+-rwxr-xr-x 1 ubuntu ubuntu 35526 May 10 13:00 admin.html
+-rwxr-xr-x 1 ubuntu ubuntu 33826 May 10 17:17 index.html
+-rwxr-xr-x 1 ubuntu ubuntu 17952 Apr 26 16:31 logo.png
+-rwxr-xr-x 1 ubuntu ubuntu 29384 May 10 16:13 manager.html
+-rwxr-xr-x 1 ubuntu ubuntu 22225 May 10 08:37 restaurant.html
+drwxr-xr-x 2 ubuntu ubuntu  4096 May 10 08:20 static
+
+## 7. SSL / HTTPS
+--- certbot certs (if any) ---
+(no letsencrypt certs)
+--- listening on 443? ---
+(nothing on 443)
+
+## 8. Logs (last 20 lines)
+--- uvicorn.log tail ---
+WARNING:  Invalid HTTP request received.
+INFO:     18.218.118.203:44356 - "GET / HTTP/1.1" 200 OK
+INFO:     18.218.118.203:55248 - "GET / HTTP/1.1" 200 OK
+WARNING:  Invalid HTTP request received.
+WARNING:  Invalid HTTP request received.
+INFO:     123.58.215.102:44772 - "GET / HTTP/1.1" 200 OK
+WARNING:  Invalid HTTP request received.
+WARNING:  Invalid HTTP request received.
+WARNING:  Invalid HTTP request received.
+INFO:     87.236.176.35:37803 - "GET / HTTP/1.1" 200 OK
+INFO:     20.65.194.87:40408 - "GET / HTTP/1.1" 200 OK
+WARNING:  Invalid HTTP request received.
+WARNING:  Invalid HTTP request received.
+WARNING:  Invalid HTTP request received.
+INFO:     67.205.153.185:58522 - "GET / HTTP/1.1" 200 OK
+INFO:     3.132.26.232:37184 - "GET / HTTP/1.1" 200 OK
+INFO:     3.132.26.232:40720 - "GET / HTTP/1.1" 200 OK
+WARNING:  Invalid HTTP request received.
+WARNING:  Invalid HTTP request received.
+INFO:     27.135.36.37:40778 - "GET / HTTP/1.0" 200 OK
+--- nginx error tail ---
+
+====================================================
+End of Audit. Copy all output back to Claude.
+====================================================

@@ -5,10 +5,11 @@ from uuid import UUID
 
 from app.db.session import get_session
 from app.models.domain import AuditLog
+from app.api.deps import require_role
 
 router = APIRouter()
 
-@router.get("/")
+@router.get("/", dependencies=[Depends(require_role("HQ_ADMIN"))])
 def list_audit_logs(
     table_name: Optional[str] = None,
     target_id: Optional[UUID] = None,
