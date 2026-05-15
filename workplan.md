@@ -245,14 +245,8 @@
 
 ## 9. 의사결정 로그 (Decision Log)
 
-이 섹션에는 향후 큰 결정 사항을 시간순으로 기록한다. (Architecture Decision Record 간이판)
-
-| 일자 | 결정 | 근거 | 결정자 |
-| :--- | :--- | :--- | :--- |
-| 2026-05-11 | (이전) RDS PostgreSQL 검토 | SQLite는 결제 동시성 대응 불가 | — |
-| 2026-05-12 | **EC2 네이티브 PostgreSQL 채택** (RDS 대신) | t3.micro 메모리 제약 + 운영 단순성. RDS는 결제 트래픽 시점에 재검토 | Sonnet+사용자 |
-| 2026-05-12 | trading_bot은 별도 인프라(Oracle Cloud Free 등) 이전 검토 | EC2 디스크 800MB 절약, 책임 분리 | 사용자 |
-| 2026-05-11 | 정산 주기는 주 단위, 마감 일요일, 지급 익주 화요일 | 사장님 요구사항(추정) | (확인 필요) |
+> 의사결정 로그는 별도 문서로 분리되었다 → **[decision_log.md](./decision_log.md)**
+> 새 결정은 그 문서에 추가한다(추가 전용). `director-archivist` 에이전트가 관리한다.
 
 ---
 

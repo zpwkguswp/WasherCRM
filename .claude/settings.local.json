@@ -69,7 +69,18 @@
       "Bash(nslookup:*)",
       "Bash(git *)",
       "Bash(tasklist)",
-      "Bash(findstr /i git)"
+      "Bash(findstr /i git)",
+      "Bash(xxd)",
+      "Bash(python3 *)",
+      "PowerShell(Remove-Item *)",
+      "Skill(update-config)",
+      "PowerShell(git *)",
+      "Bash(cp www/admin.html backend/app/static/admin.html)",
+      "Bash(python -c \"import ast; [ast.parse\\(open\\(f, encoding='utf-8'\\).read\\(\\)\\) or print\\(f, 'OK'\\) for f in ['app/core/config.py','app/core/security.py','app/api/deps.py','app/api/v1/endpoints/auth.py','app/api/v1/endpoints/audit.py','app/api/v1/api.py']]\")",
+      "Bash(python -c ' *)",
+      "Bash(venv/Scripts/python.exe tests/test_auth.py)",
+      "Bash(python tests/test_auth.py)",
+      "Bash(py *)"
     ]
   }
 }

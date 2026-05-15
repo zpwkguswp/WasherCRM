@@ -1,7 +1,8 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import branches, restaurants, requests, payments, notifications, audit
+from app.api.v1.endpoints import branches, restaurants, requests, payments, notifications, audit, auth
 
 api_router = APIRouter()
+api_router.include_router(auth.router, prefix="/auth", tags=["Auth"])
 api_router.include_router(branches.router, prefix="/branches", tags=["Branches"])
 api_router.include_router(restaurants.router, prefix="/restaurants", tags=["Restaurants"])
 api_router.include_router(requests.router, prefix="/requests", tags=["Service Requests"])

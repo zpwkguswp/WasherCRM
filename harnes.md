@@ -27,6 +27,9 @@
 - **Alembic 누락**: plan_phase1.2.1 및 본 문서에 'Alembic 도입 완료'로 기록되어 있으나 실제 백엔드에 alembic 디렉토리/설정 부재. §2.2 DB 통일 작업과 함께 셋업.
 - **PostgreSQL 전용 SQL이 SQLite 환경에서 호출**: `app/db/session.py`의 `init_db()`에서 `split_part` 등 PG 함수 사용 → 현재 일부 쿼리 silent failure 추정. §2.2에서 PostgreSQL로 전환되면 해결.
 
+### ⚠️ 신규 발견 이슈 (2026-05-15)
+- [ ] **본사 임시 비밀번호 (admin / 0000) 교체 필요**: Phase 3.2a 본사 로그인은 임시 계정 `admin`/`0000`을 사용한다. 보안상 매우 약하므로 **실서비스 오픈 전 반드시** 강한 비밀번호로 교체할 것. 교체는 코드 수정 없이 서버 `.env`의 `HQ_ADMIN_PASSWORD`·`HQ_ADMIN_ID`·`JWT_SECRET` 값만 설정하면 된다. (plan_phase3.2_auth.md §4)
+
 ---
 
 ## 🛠 해결된 이슈 (History)

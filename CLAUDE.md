@@ -105,7 +105,7 @@ The owner is cost-conscious about Opus usage. Default to **Sonnet** for normal C
 - **Refunds after settlement close** are not undone — they become `REFUND_OFFSET` line items on the *next* period's settlement. A net-negative period goes to `HOLD` status and waits for HQ approval. Don't add code that retroactively edits closed settlements.
 - **Registration uniqueness rule** (harnes.md §6): originally "name + phone + address must all be unique across the entire platform". Workplan §3.4 flags this is too strict (blocks co-managed businesses) and plans to swap to `(business_number, phone)`. If you touch registration, check which rule is in force first.
 - **Korean dates in docs are absolute** (`2026-05-12`) not relative. When updating `workplan.md` / `harnes.md` / `work_schedule.md`, write absolute dates.
-- The version branch (`1.0.0.6`) is the active dev branch; PRs target `master`.
+- The version branch (`1.0.0.7`) is the active dev branch; PRs target `master`.
 
 ## Multi-Agent Operating Manual
 
@@ -167,3 +167,37 @@ The user can upgrade to autonomous mode later by adjusting this section and `.cl
 | `director-archivist` | Architecture review, doc sync | Blocks proposals that violate any of the 6 anti-patterns |
 
 Each agent's full system prompt, owned files, and approval rules are in `.claude/agents/<name>.md`. Read those before invoking — they declare what the agent will and will not touch.
+
+## Continuous Operation Mode (연속 운영 모드)
+
+WasherCRM 작업은 **연속성**을 최우선으로 한다. 세션은 끊길 수 있고(2026-05-15 UTF-16 surrogate API 에러로 세션 중단 선례), 작업은 며칠에 걸쳐 이어지며, 운영 서비스는 멈추면 안 된다. 이 모드는 세 가지 연속성을 규정한다 — 세 가지 모두 동등하게 중요하다.
+
+### 1. 세션 연속성 · 크래시 복구
+
+세션은 API 에러·컨텍스트 한계·네트워크 단절로 언제든 끊길 수 있다. 다음 세션이 손실 없이 이어받도록:
+
+- **방어적 커밋** — 의미 있는 작업 단위가 끝날 때마다(파일 1~2개 완성, 계획서 작성 완료, 마이그레이션 1건) 즉시 커밋한다. "나중에 한 번에" 금지. 미커밋 작업은 세션이 끊기면 사라진다.
+- **세션 시작 루틴** — 새 세션은 항상 (1) `harnes.md` 금기 6개, (2) `git log --oneline -10` + `git status`, (3) `work_log.md` 최근 세션 블록, (4) `work_schedule.md`의 다음 작업, (5) `decision_log.md` 최근 결정 순으로 읽고 시작한다. `SessionStart` 훅이 (2)(3)을 자동으로 띄워준다.
+- **인계 노트** — 세션을 끝내거나 큰 작업 중간에 멈출 때는 `work_schedule.md` 체크박스를 갱신하고, `work_log.md`에 세션 블록(대화 요약 / 한 일 / 결정 / 다음 할 일 / 미해결)을 append한다(director-archivist 담당).
+- **크래시 흔적 보존** — 세션이 에러로 끊겨 미커밋 작업이 남으면, 다음 세션은 그것을 폐기하지 말고 `Archive ...` 커밋으로 보존한 뒤 정상 작업을 재개한다(커밋 `f9122de` 선례).
+- **인코딩 안전** — 문서 파일은 UTF-8(BOM 없음)로 유지한다. NUL 바이트·UTF-16 surrogate가 섞이면 세션이 크래시한다. 외부에서 들어온 `.md`는 읽기 전 인코딩을 의심한다.
+
+### 2. 자율 실행 모드 (Approval Mode 승급 경로)
+
+현재 Approval Mode는 **L0 STRICT**다. 연속성을 높이려면 사장님 승인 하에 자율 범위를 단계적으로 넓힌다.
+
+- **L0 STRICT (현재)** — 위 "Approval Mode" 규칙 그대로. 모든 파일 편집·상태 변경에 승인.
+- **L1 SEMI-AUTO** — 읽기 + 비파괴 문서 편집(`*.md`, `plan_phase*`, 테스트 코드)은 자율. 스키마·결제·인증·배포·외부 API·git push는 여전히 승인.
+- **L2 AUTO** — 위 + 애플리케이션 코드 편집·로컬 테스트·로컬 커밋 자율. 파괴적·비가역·외부 영향 작업은 끝까지 승인.
+- **항상 승인** (단계 불변) — 운영 DB 마이그레이션 적용, `git push`, 배포 스크립트, PortOne/Popbill/FCM/AWS 호출, 자금 이동, `rm`.
+- 승급은 사장님이 명시적으로 지시할 때만 한다. 승급 시 이 섹션과 `.claude/settings.local.json`을 함께 갱신한다. AI가 임의로 승급하지 않는다.
+
+### 3. 무중단 서비스 운영
+
+운영 서버(EC2 `13.124.100.75`)는 식당·지사·본사가 실제로 쓰는 서비스다. 작업이 서비스를 멈추면 안 된다.
+
+- **systemd 자동 복구** — 백엔드는 systemd 관리(2026-05-12~). 재부팅·크래시 시 자동 재기동. 수동 `uvicorn` 직접 실행 금지.
+- **무중단 배포 절차** — 코드 갱신 시 (1) 새 코드 pull, (2) `alembic upgrade head`(있으면), (3) `systemctl restart`. 스키마 변경은 하위호환 우선(컬럼 추가 OK, 삭제·NOT NULL 추가는 2단계 배포).
+- **운영 점검 주기** — `workplan.md §8`의 매주/매월 체크리스트를 따른다.
+- **장애 대응** — 운영 장애는 즉시 사장님께 1줄 보고 후 대응하고, 원인을 `harnes.md` "해결된 이슈"에 기록한다.
+- **위험 작업 전 백업** — 인스턴스 타입 변경·대규모 마이그레이션 전에는 EC2 스냅샷 또는 DB 백업을 먼저 만든다.
