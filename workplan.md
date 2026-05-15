@@ -214,4 +214,55 @@
 
 ---
 
-## 7. Phase F: 모바일 앱 (Flutter/Capacitor) — 별
+## 7. Phase F: 모바일 앱 (Flutter/Capacitor) — 별도 트랙
+
+> 현재 `android/`, `frontend/`, `capacitor.config.json` 존재. 웹앱 안정화 후 진행.
+> blueprint §5 (Phase 5) 참조.
+
+- [ ] Capacitor 빌드 파이프라인 정비
+- [ ] FCM 푸시 연동
+- [ ] 카메라/GPS 네이티브 권한
+- [ ] 구글 플레이 콘솔 — 20인 테스터 14일 정책 대응
+- [ ] 앱스토어 심사
+
+---
+
+## 8. 정기 운영 체크리스트 (매주 / 매월)
+
+### 매주 (월요일)
+- [ ] EC2 디스크/메모리 사용량 확인
+- [ ] 백엔드 로그 에러 점검 (`/home/ubuntu/backend/uvicorn.log`)
+- [ ] 정산 검토 에이전트 결과 확인
+- [ ] git push (코드/문서)
+
+### 매월 (1일)
+- [ ] 월말 회계 리포트 정상 발송 확인
+- [ ] 사용자 가입 통계 확인 (식당/지사 수)
+- [ ] AWS 비용 확인
+- [ ] harnes.md 신규 이슈 정리
+
+---
+
+## 9. 의사결정 로그 (Decision Log)
+
+이 섹션에는 향후 큰 결정 사항을 시간순으로 기록한다. (Architecture Decision Record 간이판)
+
+| 일자 | 결정 | 근거 | 결정자 |
+| :--- | :--- | :--- | :--- |
+| 2026-05-11 | (이전) RDS PostgreSQL 검토 | SQLite는 결제 동시성 대응 불가 | — |
+| 2026-05-12 | **EC2 네이티브 PostgreSQL 채택** (RDS 대신) | t3.micro 메모리 제약 + 운영 단순성. RDS는 결제 트래픽 시점에 재검토 | Sonnet+사용자 |
+| 2026-05-12 | trading_bot은 별도 인프라(Oracle Cloud Free 등) 이전 검토 | EC2 디스크 800MB 절약, 책임 분리 | 사용자 |
+| 2026-05-11 | 정산 주기는 주 단위, 마감 일요일, 지급 익주 화요일 | 사장님 요구사항(추정) | (확인 필요) |
+
+---
+
+## 10. 다음 작업 (Sonnet이 이 문서를 처음 봤을 때 무엇부터 할지)
+
+> **다음 세션에 들어온 AI는 이 순서를 따른다.**
+
+1. `harnes.md`의 금기 사항 6개를 다시 읽는다.
+2. `git log --oneline -20`으로 최근 변경 사항을 본다.
+3. **§2.1 (EC2 실제 상태 점검)** 부터 시작한다. SSH로 접속해서 DB가 SQLite인지 PostgreSQL인지 먼저 확인하고 `scratch/aws_audit_YYYYMMDD.md`에 기록한 뒤 사장님께 1줄 보고.
+4. 그 결과에 따라 §2.2 또는 §2.3으로 분기한다.
+
+새 단계 진입 전에는 반드시 `plan_phaseX.X_description.md`를 먼저 작성한다. (harnes.md §5)

@@ -35,4 +35,16 @@
 ### 1. psycopg2 설치 에러 및 의존성 이슈
 - **발생 날짜**: 2026-04-25
 - **상세 내용**: 백엔드 패키지 설치 중 `psycopg2`가 소스 빌드를 시도하며 `pg_config` 누락 에러 발생.
-- **해결 방안**: `requirements.txt`에 `psycopg2` 대신 `psycopg2-binary`를 명시하여 별도의 빌드 라이브러리 없이 설치 가능하도록 수
+- **해결 방안**: `requirements.txt`에 `psycopg2` 대신 `psycopg2-binary`를 명시하여 별도의 빌드 라이브러리 없이 설치 가능하도록 수정. 또한 SQLAlchemy와의 호환성을 위해 `SQLModel` 사용 시 명시적으로 드라이버 지정.
+- **상태**: ✅ 해결 완료
+
+### 2. DB 스키마 변경 이력 관리 누락 위험
+- **발생 날짜**: 2026-04-25
+- **상세 내용**: 초기 코드에서 `metadata.create_all()`만 사용 시, 운영 중 스키마가 변경되면 데이터 유실 위험 및 이전 버전 복구가 불가능함.
+- **해결 방안**: `Alembic`을 도입하고 `AuditLog` 테이블을 설계에 추가하여 데이터의 물리적 구조 변경과 논리적 이력을 모두 관리하도록 함.
+- **상태**: ✅ 해결 완료
+
+---
+
+## 🔗 관련 문서
+- [프로젝트 실행 계획서 (blueprint.md)](file:///c:/Users/zpwkg/Documents/WasherCRM/blueprint.md)
