@@ -21,7 +21,7 @@
 3. `requests.py` `create_request` — 생성 시 `notified_at` 기록.
 4. `requests.py` `update_request` — `assigned_branch_id`가 처음 None→값으로 바뀔 때 `accepted_at` 기록(재배정 시 최초값 유지).
 5. `schemas/domain.py` `RequestRead` — `notified_at`, `accepted_at` 노출.
-6. `GET /requests/sla/summary` (HQ_ADMIN 전용) — 수락 건수, 평균·최대 수락 소요시간(분), 임계치(기본 30분) 초과 건수, 미수락 대기 건수 반환.
+6. `GET /requests/sla/summary` (HQ_ADMIN 전용) — 수락 건수, 평균·최대 수락 소요시간(분), 임계치(기본 60분 = 1시간, 2026-05-16 대표 확정) 초과 건수, 미수락 대기 건수 반환.
 
 ## 3. 완료 조건 (AC)
 

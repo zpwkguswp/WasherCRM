@@ -144,7 +144,7 @@ def list_requests(
     return [RequestRead.from_db(r) for r in results]
 
 @router.get("/sla/summary", dependencies=[Depends(require_role("HQ_ADMIN"))])
-def sla_summary(threshold_minutes: int = 30, session: Session = Depends(get_session)):
+def sla_summary(threshold_minutes: int = 60, session: Session = Depends(get_session)):
     """본사용: 지사 수락 SLA 요약 — notified_at→accepted_at 경과시간 통계."""
     accepted = session.exec(
         select(ServiceRequest).where(
