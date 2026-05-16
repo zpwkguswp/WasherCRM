@@ -121,6 +121,7 @@
         <div class="nav-menu">
             <div class="nav-item active" data-page="dashboard" onclick="app.showPage('dashboard')"><i class="fas fa-chart-line"></i> 성과 분석</div>
             <div class="nav-item" data-page="requests" onclick="app.showPage('requests')"><i class="fas fa-tools"></i> 수리 내역 관제</div>
+            <div class="nav-item" data-page="settlements" onclick="app.showPage('settlements')"><i class="fas fa-coins"></i> 정산 관리</div>
             <div class="nav-item" data-page="branches" onclick="app.showPage('branches')"><i class="fas fa-network-wired"></i> 지사 파트너</div>
             <div class="nav-item" data-page="restaurants" onclick="app.showPage('restaurants')"><i class="fas fa-store"></i> 고객 식당</div>
         </div>
@@ -213,11 +214,26 @@
                 </div>
                 <div class="card"><div class="table-responsive"><table><thead><tr><th>접수번호</th><th>상태</th><th>배차상태</th><th>식당</th><th>지사</th><th>방문 예정</th><th>취소</th><th>카테고리</th><th>금액</th><th>만족도</th><th>리포트</th><th>날짜</th></tr></thead><tbody id="request-all-list"></tbody></table></div></div>
             </div>
+
+            <div id="page-settlements" class="page">
+                <h1>💰 정산 관리</h1>
+                <div class="legend-box">
+                    <div class="filter-group">
+                        <div class="filter-item"><label>정산 기간</label><input type="date" id="set-period-start" style="width:140px;"> <span>~</span> <input type="date" id="set-period-end" style="width:140px;"></div>
+                        <button class="btn btn-secondary btn-sm" onclick="app.fillThisWeek()">이번 주</button>
+                        <button class="btn btn-secondary btn-sm" onclick="app.fillLastWeek()">지난 주</button>
+                        <button class="btn btn-primary" onclick="app.generateSettlements()"><i class="fas fa-calculator"></i> 정산서 생성</button>
+                    </div>
+                    <div style="font-size:0.72rem; color:var(--text-light); margin-top:8px;">선택한 기간의 완료 결제를 지사별로 모아 정산서를 만듭니다. 같은 기간을 여러 번 눌러도 중복 생성되지 않습니다.</div>
+                </div>
+                <div class="card"><div class="table-responsive"><table><thead><tr><th>지사명</th><th>기간</th><th>건수</th><th>매출(VAT포함)</th><th>본사 수수료</th><th>지급액</th><th>상태</th><th>관리</th></tr></thead><tbody id="settlement-list"></tbody></table></div></div>
+            </div>
         </div>
 
         <nav class="mobile-nav">
             <div class="mobile-nav-item active" onclick="app.showPage('dashboard')" data-m-page="dashboard"><i class="fas fa-chart-line"></i><span>성과</span></div>
             <div class="mobile-nav-item" onclick="app.showPage('requests')" data-m-page="requests"><i class="fas fa-tools"></i><span>관제</span></div>
+            <div class="mobile-nav-item" onclick="app.showPage('settlements')" data-m-page="settlements"><i class="fas fa-coins"></i><span>정산</span></div>
             <div class="mobile-nav-item" onclick="app.showPage('branches')" data-m-page="branches"><i class="fas fa-network-wired"></i><span>지사</span></div>
             <div class="mobile-nav-item" onclick="app.showPage('restaurants')" data-m-page="restaurants"><i class="fas fa-store"></i><span>식당</span></div>
         </nav>
@@ -260,7 +276,8 @@
         };
 
         const app = {
-            cache: { branches: [], restaurants: [], requests: [] }, charts: {},
+            cache: { branches: [], restaurants: [], requests: [], settlements: [] }, charts: {},
+            SETTLEMENT_NEXT: { DRAFT:['REVIEW','HOLD'], REVIEW:['APPROVED','HOLD'], APPROVED:['PAID'], PAID:['INVOICED'], INVOICED:[], HOLD:['REVIEW'] },
             showPage(id) { 
                 document.querySelectorAll('.page').forEach(p => p.classList.remove('active')); 
                 document.getElementById('page-' + id).classList.add('active'); 
@@ -283,7 +300,7 @@
                 document.getElementById('sidebar').classList.toggle('mobile-active');
             },
             closeModal() { document.getElementById('common-modal').classList.remove('active'); },
-            async loadData(id) { if(id==='dashboard') this.loadDashboard(); if(id==='branches') this.loadBranches(); if(id==='restaurants') this.loadRestaurants(); if(id==='requests') this.loadRequests(); },
+            async loadData(id) { if(id==='dashboard') this.loadDashboard(); if(id==='branches') this.loadBranches(); if(id==='restaurants') this.loadRestaurants(); if(id==='requests') this.loadRequests(); if(id==='settlements') this.loadSettlements(); },
             
             async loadDashboard() {
                 const res = await fetch(`${API_BASE}/branches/metrics/performance`);
@@ -570,6 +587,111 @@
                     <div style="display:flex; gap:8px; overflow-x:auto; padding-bottom:10px;">${(r.media || []).map((file, idx) => `<div style="position:relative; min-width:100px;"><img src="${file.file_url}" style="height:100px; width:100px; border-radius:12px; object-fit:cover; border:1px solid var(--border); cursor:pointer;" onclick="window.open(this.src)"><div style="position:absolute; bottom:5px; left:5px; right:5px; background:rgba(0,0,0,0.6); color:white; font-size:0.6rem; text-align:center; border-radius:4px; padding:2px;">${idx === 0 ? '📸 접수' : '🛠️ 완료'}</div></div>`).join('') || '<p style="font-size:0.7rem; color:#94a3b8;">사진 없음</p>'}</div>
                 `;
                 document.getElementById('common-modal').classList.add('active');
+            },
+
+            // --- 정산 관리 (plan_phase4.2) ---
+            settlementBadge(st) {
+                const map = { 'DRAFT':['작성','#94a3b8'], 'REVIEW':['검토중','#2563eb'], 'APPROVED':['승인','#10b981'], 'PAID':['지급완료','#8b5cf6'], 'INVOICED':['계산서발행','#0891b2'], 'HOLD':['보류','#ef4444'] };
+                const m = map[st] || [st, '#64748b'];
+                return `<span class="badge" style="background:${m[1]};">${m[0]}</span>`;
+            },
+            settlementLabel(st) {
+                return ({ 'DRAFT':'작성', 'REVIEW':'검토중', 'APPROVED':'승인', 'PAID':'지급완료', 'INVOICED':'계산서발행', 'HOLD':'보류' })[st] || st;
+            },
+            _weekDates(offsetDays) {
+                const now = new Date();
+                now.setDate(now.getDate() + offsetDays);
+                const day = now.getDay();              // 0=일
+                const mon = new Date(now); mon.setDate(now.getDate() + (day === 0 ? -6 : 1 - day));
+                const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+                const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                document.getElementById('set-period-start').value = fmt(mon);
+                document.getElementById('set-period-end').value = fmt(sun);
+            },
+            fillThisWeek() { this._weekDates(0); },
+            fillLastWeek() { this._weekDates(-7); },
+            async loadSettlements() {
+                if(!document.getElementById('set-period-start').value) this._weekDates(0);
+                const res = await fetch(`${API_BASE}/settlements/`);
+                if(!res.ok) return;
+                const data = await res.json();
+                this.cache.settlements = data;
+                const tb = document.getElementById('settlement-list');
+                if(!Array.isArray(data) || !data.length) {
+                    tb.innerHTML = '<tr><td colspan="8" style="text-align:center; color:var(--text-light);">정산서가 없습니다. 기간을 선택하고 [정산서 생성]을 눌러주세요.</td></tr>';
+                    return;
+                }
+                tb.innerHTML = data.map(s => `
+                    <tr>
+                        <td><b>${s.branch_name || '-'}</b></td>
+                        <td style="font-size:0.75rem;">${s.period_start} ~ ${s.period_end}</td>
+                        <td style="text-align:center;">${s.item_count}건</td>
+                        <td style="font-weight:700;">₩${Number(s.gross_amount).toLocaleString()}</td>
+                        <td style="color:var(--text-light);">₩${Number(s.hq_commission).toLocaleString()} <span style="font-size:0.68rem;">(${Number(s.commission_rate)}%)</span></td>
+                        <td style="font-weight:700; color:${Number(s.net_amount)<0?'var(--danger)':'var(--accent)'};">₩${Number(s.net_amount).toLocaleString()}</td>
+                        <td>${this.settlementBadge(s.status)}</td>
+                        <td><button class="btn btn-primary btn-sm" onclick="app.openSettlement('${s.id}')">상세</button></td>
+                    </tr>`).join('');
+            },
+            async generateSettlements() {
+                const ps = document.getElementById('set-period-start').value;
+                const pe = document.getElementById('set-period-end').value;
+                if(!ps || !pe) { alert('정산 기간을 선택해 주세요.'); return; }
+                if(ps > pe) { alert('종료일이 시작일보다 빠릅니다.'); return; }
+                if(!confirm(`${ps} ~ ${pe} 기간의 정산서를 생성하시겠습니까?`)) return;
+                const res = await fetch(`${API_BASE}/settlements/generate`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ period_start:ps, period_end:pe, period_type:'WEEKLY' }) });
+                if(res.ok) {
+                    const created = await res.json();
+                    alert(created.length ? `정산서 ${created.length}건이 생성되었습니다.` : '새로 생성된 정산서가 없습니다. (해당 기간 결제가 없거나 이미 생성됨)');
+                    this.loadSettlements();
+                } else {
+                    let msg = '정산서 생성에 실패했습니다.';
+                    try { msg = (await res.json()).detail || msg; } catch(e) {}
+                    alert(msg);
+                }
+            },
+            async openSettlement(id) {
+                const res = await fetch(`${API_BASE}/settlements/${id}`);
+                if(!res.ok) { alert('정산서를 불러오지 못했습니다.'); return; }
+                const s = await res.json();
+                document.getElementById('modal-save-btn').style.display = 'none';
+                document.getElementById('modal-title').innerText = `💰 정산서 상세 — ${s.branch_name || ''}`;
+                const supply = Number(s.gross_amount) - Number(s.vat_amount);
+                const nexts = this.SETTLEMENT_NEXT[s.status] || [];
+                const btns = nexts.length
+                    ? nexts.map(n => `<button class="btn btn-primary btn-sm" onclick="app.transitionSettlement('${s.id}','${n}')">→ ${this.settlementLabel(n)}</button>`).join(' ')
+                    : '<span style="color:var(--text-light); font-size:0.75rem;">더 진행할 단계가 없습니다.</span>';
+                document.getElementById('modal-body').innerHTML = `
+                    <div style="background:var(--bg); padding:15px; border-radius:12px; margin-bottom:15px; font-size:0.8rem;">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:6px;"><span>정산 기간</span><b>${s.period_start} ~ ${s.period_end}</b></div>
+                        <div style="display:flex; justify-content:space-between; margin-bottom:6px;"><span>매출 합계 (VAT 포함)</span><b>₩${Number(s.gross_amount).toLocaleString()}</b></div>
+                        <div style="display:flex; justify-content:space-between; margin-bottom:6px; color:var(--text-light);"><span>└ 공급가액 / 부가세</span><span>₩${supply.toLocaleString()} / ₩${Number(s.vat_amount).toLocaleString()}</span></div>
+                        <div style="display:flex; justify-content:space-between; margin-bottom:6px;"><span>본사 수수료 (${Number(s.commission_rate)}%)</span><b style="color:var(--danger);">- ₩${Number(s.hq_commission).toLocaleString()}</b></div>
+                        ${Number(s.refund_offset) > 0 ? `<div style="display:flex; justify-content:space-between; margin-bottom:6px;"><span>환불 차감</span><b style="color:var(--danger);">- ₩${Number(s.refund_offset).toLocaleString()}</b></div>` : ''}
+                        <div style="display:flex; justify-content:space-between; border-top:1px solid var(--border); padding-top:8px; margin-top:4px;"><span style="font-weight:700;">최종 지급액</span><b style="font-size:1.05rem; color:${Number(s.net_amount)<0?'var(--danger)':'var(--accent)'};">₩${Number(s.net_amount).toLocaleString()}</b></div>
+                    </div>
+                    <div style="margin-bottom:8px;"><b style="font-size:0.85rem;">현재 상태: </b>${this.settlementBadge(s.status)}${s.approved_by ? ` <span style="font-size:0.7rem; color:var(--text-light);">(승인: ${s.approved_by})</span>` : ''}</div>
+                    <div style="margin-bottom:15px; display:flex; gap:8px; flex-wrap:wrap;">${btns}</div>
+                    <h4 style="font-size:0.8rem; margin-bottom:8px;">📋 정산 내역 (${(s.items||[]).length}건)</h4>
+                    <div style="font-size:0.75rem; max-height:240px; overflow-y:auto;">
+                        ${(s.items||[]).map(it => `<div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--border);"><span>${it.item_type}${it.description ? ' · ' + it.description : ''}</span><b>₩${Number(it.amount).toLocaleString()}</b></div>`).join('') || '<span style="color:var(--text-light);">내역 없음</span>'}
+                    </div>
+                    ${s.notes ? `<div style="margin-top:10px; font-size:0.72rem; color:var(--text-light);">메모: ${s.notes}</div>` : ''}
+                `;
+                document.getElementById('common-modal').classList.add('active');
+            },
+            async transitionSettlement(id, newStatus) {
+                if(!confirm(`정산서를 '${this.settlementLabel(newStatus)}' 상태로 변경하시겠습니까?`)) return;
+                const res = await fetch(`${API_BASE}/settlements/${id}/status`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status:newStatus }) });
+                if(res.ok) {
+                    alert('상태가 변경되었습니다.');
+                    this.closeModal();
+                    this.loadSettlements();
+                } else {
+                    let msg = '상태 변경에 실패했습니다.';
+                    try { msg = (await res.json()).detail || msg; } catch(e) {}
+                    alert(msg);
+                }
             },
 
             // --- 본사 로그인 (Phase 3.2a) ---
