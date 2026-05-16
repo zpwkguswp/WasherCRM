@@ -100,8 +100,8 @@
             <div id="page-profile" class="page">
                 <h2>지사 정보 관리</h2>
                 <div class="card" style="border:none;">
-                    <div class="input-group"><label>지사명</label><input type="text" id="profile-name"></div>
-                    <div class="input-group"><label>매니저 연락처</label><input type="text" id="profile-phone"></div>
+                    <div class="input-group"><label>지사명 (수정 불가)</label><input type="text" id="profile-name" readonly style="background:#f1f5f9; color:#94a3b8; cursor:not-allowed;"></div>
+                    <div class="input-group"><label>매니저 연락처 (수정 불가)</label><input type="text" id="profile-phone" readonly style="background:#f1f5f9; color:#94a3b8; cursor:not-allowed;"></div>
                     <div class="input-group"><label>지사 주소</label><input type="text" id="profile-addr" readonly><button style="position:absolute; right:8px; bottom:6px; padding:6px 12px; border-radius:8px; font-size:0.75rem; background:#f1f5f9; border:1px solid var(--border); cursor:pointer; font-weight:700;" onclick="app.searchAddress('profile')">주소 찾기</button></div>
                     <div class="input-group"><label>상세 주소</label><input type="text" id="profile-addr-detail"></div>
                     <button class="btn btn-primary" onclick="app.saveProfile()">저장하기</button>
@@ -367,12 +367,10 @@
                 document.getElementById('profile-addr-detail').value = addr[1] || "";
             },
             async saveProfile() {
-                const name = document.getElementById('profile-name').value;
-                const phone = document.getElementById('profile-phone').value;
                 const addr = document.getElementById('profile-addr').value;
                 const detail = document.getElementById('profile-addr-detail').value;
-                // 주소에서 도+시를 자동 추출해 담당 지역으로 저장
-                const payload = { name, manager_phone: phone, address: addr + '  ' + detail, region_code: this.extractRegion(addr) };
+                // 지사명·매니저 연락처는 수정 불가 — 주소만 수정 가능. 주소에서 도+시 자동 추출.
+                const payload = { address: addr + '  ' + detail, region_code: this.extractRegion(addr) };
                 const res = await fetch(`${API_BASE}/branches/${this.branch.id}`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
                 
                 if(res.ok) {

@@ -387,17 +387,18 @@
                             <option value="DIAMOND" ${b.tier==='DIAMOND'?'selected':''}>DIAMOND (5%)</option>
                         </select>
                     </div>
-                    <div class="edit-input-group"><label>담당 지역 (도시명)</label><input type="text" id="edit-b-region" value="${b.region_code || ''}" placeholder="예: 수원시"></div>
-                    <div class="edit-input-group"><label>매니저 연락처</label><input type="text" id="edit-b-phone" value="${b.manager_phone}"></div>
-                    <div class="edit-input-group"><label>상세 주소</label><input type="text" id="edit-b-addr" value="${b.address}"></div>
                     <div class="edit-input-group"><label>수수료율 (%)</label><input type="number" id="edit-b-rate" value="${b.commission_rate}"></div>
+                    <div class="edit-input-group"><label>담당 지역 (도시명) — 수정 불가</label><input type="text" id="edit-b-region" value="${b.region_code || ''}" readonly style="background:#f1f5f9; color:#94a3b8; cursor:not-allowed;"></div>
+                    <div class="edit-input-group"><label>매니저 연락처 — 수정 불가</label><input type="text" id="edit-b-phone" value="${b.manager_phone}" readonly style="background:#f1f5f9; color:#94a3b8; cursor:not-allowed;"></div>
+                    <div class="edit-input-group"><label>상세 주소 — 수정 불가</label><input type="text" id="edit-b-addr" value="${b.address}" readonly style="background:#f1f5f9; color:#94a3b8; cursor:not-allowed;"></div>
                 `;
                 document.getElementById('modal-save-btn').style.display = '';
                 document.getElementById('modal-save-btn').onclick = () => this.saveBranch(id);
                 document.getElementById('common-modal').classList.add('active');
             },
             async saveBranch(id) {
-                const payload = { name: document.getElementById('edit-b-name').value, tier: document.getElementById('edit-b-tier').value, region_code: document.getElementById('edit-b-region').value, manager_phone: document.getElementById('edit-b-phone').value, address: document.getElementById('edit-b-addr').value, commission_rate: parseFloat(document.getElementById('edit-b-rate').value) };
+                // 본사는 지사명·등급·수수료율만 수정 가능 (지역·연락처·주소는 수정 불가)
+                const payload = { name: document.getElementById('edit-b-name').value, tier: document.getElementById('edit-b-tier').value, commission_rate: parseFloat(document.getElementById('edit-b-rate').value) };
                 const res = await fetch(`${API_BASE}/branches/${id}`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
                 if(res.ok) { alert('수정 완료!'); this.closeModal(); this.loadBranches(); }
             },
@@ -408,15 +409,16 @@
                 document.getElementById('modal-body').innerHTML = `
                     <div class="edit-input-group"><label>식당명</label><input type="text" id="edit-r-name" value="${r.name}"></div>
                     <div class="edit-input-group"><label>지역</label><input type="text" id="edit-r-region" value="${r.region || ''}"></div>
-                    <div class="edit-input-group"><label>전체 주소</label><input type="text" id="edit-r-addr" value="${r.address}"></div>
-                    <div class="edit-input-group"><label>연락처</label><input type="text" id="edit-r-phone" value="${r.phone}"></div>
+                    <div class="edit-input-group"><label>전체 주소 — 수정 불가</label><input type="text" id="edit-r-addr" value="${r.address}" readonly style="background:#f1f5f9; color:#94a3b8; cursor:not-allowed;"></div>
+                    <div class="edit-input-group"><label>연락처 — 수정 불가</label><input type="text" id="edit-r-phone" value="${r.phone}" readonly style="background:#f1f5f9; color:#94a3b8; cursor:not-allowed;"></div>
                 `;
                 document.getElementById('modal-save-btn').style.display = '';
                 document.getElementById('modal-save-btn').onclick = () => this.saveRestaurant(id);
                 document.getElementById('common-modal').classList.add('active');
             },
             async saveRestaurant(id) {
-                const payload = { name: document.getElementById('edit-r-name').value, region: document.getElementById('edit-r-region').value, address: document.getElementById('edit-r-addr').value, phone: document.getElementById('edit-r-phone').value };
+                // 본사는 식당명·지역만 수정 가능 (주소·연락처는 수정 불가)
+                const payload = { name: document.getElementById('edit-r-name').value, region: document.getElementById('edit-r-region').value };
                 const res = await fetch(`${API_BASE}/restaurants/${id}`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
                 if(res.ok) { alert('수정 완료!'); this.closeModal(); this.loadRestaurants(); }
             },
