@@ -351,6 +351,7 @@
                             </div>
                             <div class="detail-view">
                                 <div style="margin-bottom:15px;"><b>진행 상황:</b> <span style="color:var(--primary); font-weight:700;">${this.getStatDesc(status)}</span></div>
+                                ${r.scheduled_visit_at ? `<div style="margin-bottom:15px; padding:12px; background:#eff6ff; border-radius:12px; border-left:5px solid var(--primary);"><b style="color:var(--primary); font-size:0.8rem;"><i class="fas fa-calendar-check"></i> 방문 예정</b><br><span style="font-size:1.05rem; font-weight:800;">${this.formatVisit(r.scheduled_visit_at)}</span><br><span style="font-size:0.78rem; color:var(--text-light);">담당 지사가 위 일정에 방문합니다.</span></div>` : ''}
                                 ${(['PAYMENT_REQUESTED', 'COMPLETED'].includes(status)) ? `
                                     <div style="background:#f1f5f9; border-radius:15px; padding:15px; margin-bottom:15px; border-left:5px solid var(--success);">
                                         <div style="font-size:0.75rem; color:var(--text-light); font-weight:800; margin-bottom:8px;">🛠️ 수리 완료 리포트</div>
@@ -474,6 +475,13 @@
             },
             // 배정 상태 반영 — 접수(PENDING)됐지만 지사가 수락·배정되면 'ASSIGNED'로 표시
             effStatus(r) { return (r.status === 'PENDING' && ['CLAIMED','HQ_ASSIGNED'].includes(r.dispatch_status)) ? 'ASSIGNED' : r.status; },
+            // 방문 예정 일시 → 한국어 표기 (plan_phase3.6)
+            formatVisit(iso) {
+                if(!iso) return '';
+                const d = new Date(iso);
+                if(isNaN(d)) return '';
+                return d.toLocaleString('ko-KR', { month:'long', day:'numeric', weekday:'short', hour:'2-digit', minute:'2-digit' });
+            },
             getStatColor(s) { const map={'PENDING':'#f59e0b', 'ASSIGNED':'#2563eb', 'IN_PROGRESS':'#3b82f6', 'SUSPENDED':'#6b7280', 'PAYMENT_REQUESTED':'#10b981', 'COMPLETED':'#64748b', 'CANCELED':'#94a3b8'}; return map[s]||'#000'; },
             formatStat(s) { const map={'PENDING':'접수대기', 'ASSIGNED':'지사 배정완료', 'IN_PROGRESS':'수리중', 'SUSPENDED':'중단됨', 'PAYMENT_REQUESTED':'결제대기', 'COMPLETED':'수리완료', 'CANCELED':'취소됨'}; return map[s]||s; },
             getStatDesc(s) { const map={'PENDING':'본사에서 지사를 배정 중입니다.', 'ASSIGNED':'담당 지사가 배정되었습니다. 곧 수리가 진행됩니다.', 'IN_PROGRESS':'지사 매니저가 현장 수리 중입니다.', 'SUSPENDED':'수리가 일시 중단되었습니다. 본사에서 확인 후 다시 진행됩니다.', 'PAYMENT_REQUESTED':'수리가 완료되었습니다. 결제 후 수리 리포트를 확인하세요.', 'COMPLETED':'수리가 완료되었으며 결제가 끝났습니다.', 'CANCELED':'취소된 신청입니다.'}; return map[s]||''; }

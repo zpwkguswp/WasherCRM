@@ -178,6 +178,17 @@
             </div>
         </div>
 
+        <!-- 방문 일정 지정 모달 (plan_phase3.6) -->
+        <div id="modal-schedule" class="modal">
+            <div class="modal-content">
+                <h2 style="margin-top:0;">방문 일정 지정</h2>
+                <p style="font-size:0.9rem; color:var(--text-light); margin-bottom:14px;">고객을 방문할 날짜와 시간을 선택해 주세요. 식당과 본사에 함께 전달됩니다.</p>
+                <div class="input-group"><label>방문 예정 일시</label><input type="datetime-local" id="schedule-datetime"></div>
+                <button class="btn btn-primary" onclick="app.confirmSchedule()">확정</button>
+                <button class="btn btn-secondary" style="margin-top:10px;" onclick="app.closeModal('schedule')">닫기</button>
+            </div>
+        </div>
+
         <div id="manager-nav" class="nav-bar" style="display:none;">
             <div class="nav-item active" onclick="app.switchTab('assigned')"><i class="fas fa-bell"></i><span>할당</span></div>
             <div class="nav-item" onclick="app.switchTab('progress')"><i class="fas fa-tools"></i><span>진행</span></div>
@@ -406,7 +417,7 @@
                     <div style="font-weight:700; margin-top:5px; color:var(--danger);">${this.categoryLabel(r.category)}</div>
                     <div style="margin-top:8px; padding:10px; background:#f1f5f9; border-radius:8px; font-size:0.88rem; white-space:pre-wrap;">${r.description || '내용 없음'}</div>
                     ${(r.media && r.media.length) ? `<div style="display:flex; gap:5px; margin-top:8px; overflow-x:auto;">${r.media.map(m => `<img src="${m.file_url}" style="height:64px; width:64px; object-fit:cover; border-radius:6px; cursor:pointer;" onclick="window.open(this.src)">`).join('')}</div>` : ''}
-                    <button class="btn btn-primary" style="margin-top:15px; padding:10px;" onclick="app.${r.dispatch_status ? `claimRequest('${r.id}')` : `acceptRequest('${r.id}')`}">수리 수락하기</button>
+                    <button class="btn btn-primary" style="margin-top:15px; padding:10px;" onclick="app.openScheduleModal('${r.id}', ${!!r.dispatch_status}, 'claim')">수리 수락 + 방문일정</button>
                 </div>`).join('') || '<p style="text-align:center; padding:40px; color:var(--text-light);">새로운 요청이 없습니다.</p>';
 
                 document.getElementById('progress-list').innerHTML = data.filter(r => {
@@ -417,6 +428,7 @@
                     <div class="card" style="border-left-color:var(--warning);" onclick="this.classList.toggle('expanded')">
                         <div style="font-size:0.75rem; color:var(--text-light); margin-bottom:4px;">접수번호 #${r.id.split('-')[0].toUpperCase()}</div>
                         <div style="display:flex; justify-content:space-between; align-items:center;"><a href="tel:${r.restaurant_phone || ''}" onclick="event.stopPropagation();" style="font-weight:800; color:var(--accent); text-decoration:none;"><i class="fas fa-phone-alt" style="font-size:0.8rem;"></i> ${r.restaurant_name}</a><span style="display:flex; gap:4px; align-items:center;">${r.status!=='SUSPENDED'?this.dispatchBadge(r.dispatch_status):''}${this.progressStatusBadge(r.status)}</span></div>
+                        <div style="margin-top:6px; font-size:0.85rem; font-weight:700; color:${r.scheduled_visit_at?'var(--accent)':'var(--text-light)'};"><i class="fas fa-calendar-check"></i> ${r.scheduled_visit_at ? '방문 예정: '+this.formatVisit(r.scheduled_visit_at) : '방문 일정 미정'}</div>
                         <div class="detail-view">
                             <div style="margin-bottom:8px;"><i class="fas fa-map-marker-alt"></i> ${r.restaurant_address || r.address || '-'}</div>
                             <div style="margin-bottom:10px; padding:10px; background:#f1f5f9; border-radius:8px;">${r.description || '-'}</div>
@@ -424,6 +436,7 @@
                                 ${(r.media || []).map(m => `<img src="${m.file_url}" style="height:60px; width:60px; object-fit:cover; border-radius:6px;" onclick="event.stopPropagation(); window.open(this.src)">`).join('')}
                             </div>
                             ${r.status==='PENDING'?`<button class="btn btn-primary" style="margin-top:10px;" onclick="event.stopPropagation(); app.startRepair('${r.id}')"><i class="fas fa-wrench"></i> 수리 시작</button>`:r.status==='IN_PROGRESS'?`<button class="btn btn-primary" style="margin-top:10px;" onclick="event.stopPropagation(); app.openReport('${r.id}')">리포트 작성</button><button class="btn btn-secondary" style="margin-top:10px; color:var(--danger);" onclick="event.stopPropagation(); app.suspendRepair('${r.id}')"><i class="fas fa-pause-circle"></i> 수리 중단</button>`:r.status==='SUSPENDED'?`<div style="margin-top:10px; font-weight:700; color:#6b7280;">⏸ 수리가 중단된 상태입니다.</div><button class="btn btn-primary" style="margin-top:10px;" onclick="event.stopPropagation(); app.resumeRepair('${r.id}')"><i class="fas fa-play-circle"></i> 수리 재진행</button>`:'<div style="margin-top:10px; font-weight:700; color:var(--accent);">결제 대기 중입니다.</div>'}
+                            ${!['COMPLETED','CANCELED'].includes(r.status)?`<button class="btn btn-secondary" style="margin-top:10px;" onclick="event.stopPropagation(); app.openScheduleModal('${r.id}', false, 'reschedule')"><i class="fas fa-calendar-alt"></i> 방문 일정 변경</button>`:''}
                             ${(r.dispatch_status==='CLAIMED' && r.assigned_branch_id===this.branch.id && r.status==='PENDING')?`<button class="btn btn-secondary" style="margin-top:10px;" onclick="event.stopPropagation(); app.openReleaseModal('${r.id}')"><i class="fas fa-times-circle"></i> 배차 취소</button>`:''}
                         </div>
                     </div>`).join('') || '<p style="text-align:center; padding:40px;">진행 중인 작업 없음</p>';
@@ -463,6 +476,52 @@
                 const res = await fetch(`${API_BASE}/requests/${id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status:'IN_PROGRESS'}) });
                 if(res.ok) { alert('수리를 재진행합니다.'); this.loadData(); }
                 else { alert('재진행 처리에 실패했습니다.'); }
+            },
+            // --- 방문 일정 (plan_phase3.6) ---
+            // 방문 예정 일시 → 한국어 표기
+            formatVisit(iso) {
+                if(!iso) return '';
+                const d = new Date(iso);
+                if(isNaN(d)) return '';
+                return d.toLocaleString('ko-KR', { month:'long', day:'numeric', hour:'2-digit', minute:'2-digit', weekday:'short' });
+            },
+            // 일정 모달 열기 — mode 'claim'(수락+일정) / 'reschedule'(일정만 변경)
+            openScheduleModal(id, isDispatch, mode) {
+                this.scheduleTarget = { id, isDispatch: !!isDispatch, mode: mode || 'claim' };
+                document.getElementById('schedule-datetime').value = '';
+                document.getElementById('modal-schedule').style.display = 'block';
+            },
+            async confirmSchedule() {
+                const dt = document.getElementById('schedule-datetime').value;  // "YYYY-MM-DDTHH:MM"
+                if(!dt) return alert('방문 날짜와 시간을 선택해 주세요.');
+                const t = this.scheduleTarget;
+                if(!t) return;
+                document.getElementById('modal-schedule').style.display = 'none';
+                try {
+                    if(t.mode === 'claim') {
+                        // 먼저 수락 처리
+                        if(t.isDispatch) {
+                            const res = await fetch(`${API_BASE}/requests/${t.id}/claim`, { method:'POST' });
+                            if(!res.ok) {
+                                if(res.status === 409) { alert('이미 다른 지사가 수락했습니다.'); this.loadData(); return; }
+                                alert('수락에 실패했습니다.'); return;
+                            }
+                        } else {
+                            const res = await fetch(`${API_BASE}/requests/${t.id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ status:'IN_PROGRESS', assigned_branch_id:this.branch.id }) });
+                            if(!res.ok) { alert('수락에 실패했습니다.'); return; }
+                        }
+                    }
+                    // 방문 예정 일시 저장 — 식당·본사에 함께 반영됨
+                    const r2 = await fetch(`${API_BASE}/requests/${t.id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ scheduled_visit_at: dt }) });
+                    if(r2.ok) {
+                        alert(t.mode === 'claim' ? '수락 완료! 방문 일정이 등록되어 식당·본사에 전달됩니다.' : '방문 일정이 변경되었습니다.');
+                    } else {
+                        alert('방문 일정 저장에 실패했습니다.');
+                    }
+                    this.loadData();
+                } catch(e) {
+                    alert('처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+                }
             },
             // 진행 탭 상태 뱃지 (라벨·색상)
             progressStatusBadge(status) {

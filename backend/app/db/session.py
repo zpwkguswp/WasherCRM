@@ -75,3 +75,12 @@ def init_db():
         except Exception as e:
             session.rollback()
             print(f"Dispatch column add error: {e}")
+
+        # 7. [방문 일정 plan_phase3.6] service_requests 방문 예정 일시 컬럼
+        try:
+            session.execute(text("ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS scheduled_visit_at TIMESTAMP;"))
+            session.commit()
+            print("Successfully added scheduled_visit_at to service_requests")
+        except Exception as e:
+            session.rollback()
+            print(f"Visit schedule column add error: {e}")

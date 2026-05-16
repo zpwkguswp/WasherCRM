@@ -15,6 +15,8 @@ class RequestUpdate(BaseModel):
     category: Optional[str] = None
     description: Optional[str] = None
     metadata: Optional[dict] = None
+    dispatch_status: Optional[str] = None
+    scheduled_visit_at: Optional[datetime] = None
 
 class MediaRead(BaseModel):
     id: UUID
@@ -41,6 +43,8 @@ class RequestRead(BaseModel):
     dispatch_status: Optional[str] = None
     cancel_count: int = 0
     dispatch_deadline: Optional[datetime] = None
+    # 방문 일정 (plan_phase3.6)
+    scheduled_visit_at: Optional[datetime] = None
     # 프론트엔드 편의를 위한 정보 추가
     restaurant_name: Optional[str] = None
     restaurant_address: Optional[str] = None

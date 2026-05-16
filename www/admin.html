@@ -211,7 +211,7 @@
                         <button class="btn btn-primary" onclick="app.loadRequests()"><i class="fas fa-search"></i> 검색</button>
                     </div>
                 </div>
-                <div class="card"><div class="table-responsive"><table><thead><tr><th>접수번호</th><th>상태</th><th>배차상태</th><th>식당</th><th>지사</th><th>취소</th><th>카테고리</th><th>금액</th><th>만족도</th><th>리포트</th><th>날짜</th></tr></thead><tbody id="request-all-list"></tbody></table></div></div>
+                <div class="card"><div class="table-responsive"><table><thead><tr><th>접수번호</th><th>상태</th><th>배차상태</th><th>식당</th><th>지사</th><th>방문 예정</th><th>취소</th><th>카테고리</th><th>금액</th><th>만족도</th><th>리포트</th><th>날짜</th></tr></thead><tbody id="request-all-list"></tbody></table></div></div>
             </div>
         </div>
 
@@ -382,6 +382,7 @@
                             <td>${this.dispatchBadge(r.dispatch_status)}${isEscalated ? `<button class="btn btn-primary btn-sm" style="margin-left:6px;" onclick="app.rebroadcastRequest('${r.id}')"><i class="fas fa-bullhorn"></i> 재배포</button>` : ''}</td>
                             <td><b>${r.restaurant_name}</b></td>
                             <td>${r.branch_name || '<span style="color:#94a3b8;">미배정</span>'}</td>
+                            <td>${r.scheduled_visit_at ? `<b style="color:var(--accent);">${this.formatVisit(r.scheduled_visit_at)}</b>` : '<span style="color:#94a3b8;">-</span>'}</td>
                             <td style="text-align:center;">${(r.cancel_count || 0) > 0 ? `<b style="color:var(--danger);">${r.cancel_count}회</b>` : '<span style="color:#94a3b8;">0</span>'}</td>
                             <td>${r.category}</td>
                             <td style="font-weight:700;">₩${(r.metadata?.requested_amount || 0).toLocaleString()}</td>
@@ -502,6 +503,13 @@
             async approve(type, id) { const payload = { is_approved: true }; if(type==='branches'){ payload.tier='BRONZE'; payload.commission_rate=10; } await fetch(`${API_BASE}/${type}/${id}`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) }); this.loadData(type); },
             async reject(type, id) { if(!confirm('정말 삭제하시겠습니까?')) return; await fetch(`${API_BASE}/${type}/${id}`, { method: 'DELETE' }); this.loadData(type); },
             getTierStyle(tier) { const map = { 'BRONZE': '#cd7f32', 'SILVER': '#c0c0c0', 'GOLD': '#ffd700', 'DIAMOND': '#b9f2ff' }; return map[(tier || 'BRONZE').toUpperCase()] || '#cd7f32'; },
+            // 방문 예정 일시 → 한국어 표기 (plan_phase3.6)
+            formatVisit(iso) {
+                if(!iso) return '-';
+                const d = new Date(iso);
+                if(isNaN(d)) return '-';
+                return d.toLocaleString('ko-KR', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+            },
 
             // --- 배차 (Phase 3.7) ---
             // 배차 상태 → 한국어 뱃지

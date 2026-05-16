@@ -70,6 +70,9 @@ class ServiceRequest(SQLModel, table=True):
     cancel_count: int = Field(default=0)              # 담당 지사 취소 누적 횟수
     dispatch_deadline: Optional[datetime] = None      # 수락 대기 타임아웃 만료 시각
 
+    # 방문 일정 (plan_phase3.6) — 지사가 수락 시 지정하는 방문 예정 일시
+    scheduled_visit_at: Optional[datetime] = None
+
     branch: Optional[Branch] = Relationship(back_populates="requests")
     restaurant: Restaurant = Relationship(back_populates="requests")
     media: List["RequestMedia"] = Relationship(back_populates="request")
