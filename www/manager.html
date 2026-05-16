@@ -430,9 +430,9 @@
                         </div>
                     </div>`).join('') || '<p style="text-align:center; padding:40px;">진행 중인 작업 없음</p>';
 
-                // 내역은 최근 2주(14일)치만 노출 — 오래된 건은 자동으로 숨김
+                // 내역은 이 지사가 담당한 건만, 최근 2주(14일)치만 노출
                 const twoWeeksAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
-                document.getElementById('history-list').innerHTML = data.filter(r => ['COMPLETED','CANCELED'].includes(r.status) && new Date(r.created_at).getTime() >= twoWeeksAgo).reverse().map(r => `
+                document.getElementById('history-list').innerHTML = data.filter(r => ['COMPLETED','CANCELED'].includes(r.status) && r.assigned_branch_id === this.branch.id && new Date(r.created_at).getTime() >= twoWeeksAgo).reverse().map(r => `
                     <div class="card" style="border-left-color:${r.status==='COMPLETED'?'var(--success)':'#94a3b8'};" ${r.status==='COMPLETED' ? `onclick="app.viewReport('${r.id}')"` : ''}>
                         <div style="display:flex; justify-content:space-between; align-items:center;">
                             <b>${r.restaurant_name}</b>
