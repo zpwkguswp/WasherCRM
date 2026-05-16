@@ -12,6 +12,7 @@ from app.models.domain import ServiceRequest, AuditLog, RequestMedia, DeviceToke
 from app.schemas.domain import RequestCreate, RequestUpdate, RequestRead
 from app.utils.notifications import send_push_notification
 from app.services.storage import storage
+from app.api.deps import require_role
 
 router = APIRouter()
 
@@ -267,7 +268,7 @@ async def upload_media(
     
     return {"status": "success", "file_url": file_url}
 
-@router.delete("/{request_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{request_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_role("HQ_ADMIN"))])
 def delete_request(request_id: UUID, session: Session = Depends(get_session)):
     db_request = session.get(ServiceRequest, request_id)
     if not db_request:

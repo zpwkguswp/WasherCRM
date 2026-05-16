@@ -40,27 +40,9 @@ def init_db():
             # 지사/식당 전체 승인 처리 (매칭 활성화)
             session.execute(text("UPDATE restaurants SET is_approved = true WHERE is_approved = false;"))
             session.execute(text("UPDATE branches SET is_approved = true WHERE is_approved = false;"))
-            
-            # [특정 건 복구] #BE4988BB 리포트 데이터 강제 주입
-            # [결제 데이터 매칭 수선] 100원(#8217E870), 5만원(#BE4988BB) 재연결
-            session.execute(text("""
-                UPDATE payments SET request_id = (SELECT id FROM service_requests WHERE CAST(id AS TEXT) LIKE '8217e870%' LIMIT 1)
-                WHERE amount = 100;
-            """))
-            session.execute(text("""
-                UPDATE payments SET request_id = (SELECT id FROM service_requests WHERE CAST(id AS TEXT) LIKE 'be4988bb%' LIMIT 1)
-                WHERE amount = 50000;
-            """))
-            
-            # PostgreSQL의 jsonb_set 기능을 사용하여 기존 메타데이터에 survey 객체 추가
-            session.execute(text("""
-                UPDATE service_requests 
-                SET metadata = jsonb_set(COALESCE(metadata::jsonb, '{}'::jsonb), '{survey}', '{"rating": 4, "comment": "사장님 잘생겼어요"}'::jsonb)
-                WHERE CAST(id AS TEXT) LIKE '3cee5c62%';
-            """))
-            
+
             session.commit()
-            print("Successfully repaired DB matching data (regions, approvals, #BE4988BB, #8217E870)")
+            print("Successfully normalized restaurant regions and approvals")
         except Exception as e:
             session.rollback()
-            print(f"DB Repair Error: {e}")
+            print(f"DB Normalize Error: {e}")

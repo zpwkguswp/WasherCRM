@@ -80,7 +80,10 @@
       "Bash(python -c ' *)",
       "Bash(venv/Scripts/python.exe tests/test_auth.py)",
       "Bash(python tests/test_auth.py)",
-      "Bash(py *)"
+      "Bash(py *)",
+      "Bash(grep -iE \"\\\\.env|serviceAccountKey|\\\\.pem|\\\\.db$|AWS_accesskey|google-services\")",
+      "Bash(gh repo *)",
+      "Bash(curl *)"
     ]
   }
 }

@@ -50,3 +50,25 @@
 
 - workplan.md §3.2 · blueprint.md §3.4(보안)·§9(모델 정책)
 - decision_log.md — 본 계획의 결정사항을 ADR로 등록 예정
+
+---
+
+## 6. Phase 3.2a-2 — API 잠금 확대 (2026-05-16)
+
+코드 감사(2026-05-16) 결과 `audit-logs` 외 모든 엔드포인트가 무인증 공개임이 확인됨(감사 H1). 식당·지사는 아직 정식 인증이 없으므로(§3.2b 대기), **식당·지사가 사용하지 않는 본사 전용 엔드포인트만** `HQ_ADMIN`으로 잠근다. 식당·지사가 쓰는 엔드포인트는 §3.2b까지 개방 유지 (사용자 승인 2026-05-16).
+
+### HQ_ADMIN 전용으로 잠그는 엔드포인트 (식당·지사 미사용 확인됨)
+| 엔드포인트 | 이유 |
+| :-- | :-- |
+| `GET /branches/metrics/performance` | 본사 실적 대시보드 전용 |
+| `DELETE /branches/{id}` | 지사 삭제 — 본사만 |
+| `DELETE /restaurants/{id}` | 식당 삭제 — 본사만 |
+| `DELETE /requests/{id}` | 수리요청 삭제 — 본사만 |
+| `GET /payments/` | 전체 결제 목록 — 본사 회계용 |
+| `GET /notifications/tokens` | 전체 기기토큰 목록 — 본사/디버그용 |
+| `GET /audit-logs/` | (3.2a에서 적용 완료) |
+
+### 개방 유지 (§3.2b에서 식당·지사 인증 도입 후 재정비)
+- `POST` /branches·/restaurants·/requests (가입·접수), `POST /requests/{id}/media`, `POST /payments/verify`, `POST /notifications/register`
+- `GET` 목록·상세 (branches/restaurants/requests)
+- `PATCH` /branches·/restaurants·/requests — 본사 승인/수정과 지사 상태변경이 **같은 엔드포인트를 공유**하므로 역할 분리(§3.2b) 전까지 개방. → **알려진 잔여 위험** (harnes.md 등록).

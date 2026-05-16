@@ -8,6 +8,7 @@ from datetime import datetime
 from app.db.session import get_session
 from app.models.domain import Restaurant, AuditLog, ServiceRequest
 from app.schemas.domain import RestaurantCreate, RestaurantUpdate, RestaurantRead
+from app.api.deps import require_role
 
 router = APIRouter()
 
@@ -98,7 +99,7 @@ def update_restaurant(restaurant_id: UUID, data: RestaurantUpdate, session: Sess
     session.refresh(restaurant)
     return restaurant
 
-@router.delete("/{restaurant_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{restaurant_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_role("HQ_ADMIN"))])
 def delete_restaurant(restaurant_id: UUID, session: Session = Depends(get_session)):
     restaurant = session.get(Restaurant, restaurant_id)
     if not restaurant:
