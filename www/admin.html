@@ -156,6 +156,10 @@
                         <h3>🏆 지사 실적 랭킹</h3>
                         <div class="table-responsive"><table id="branch-rank-table"><thead><tr><th>순위</th><th>지사명</th><th>등급</th><th>달성률</th><th>총 매출</th><th>만족도</th></tr></thead><tbody></tbody></table></div>
                     </div>
+                    <div class="card">
+                        <h3>🚫 지사별 취소 현황</h3>
+                        <div class="table-responsive"><table id="cancel-table"><thead><tr><th>지사명</th><th>취소 건수</th><th>사유별</th></tr></thead><tbody></tbody></table></div>
+                    </div>
                 </div>
             </div>
 
@@ -289,6 +293,21 @@
                 const ctx = document.getElementById('revenuePieChart').getContext('2d');
                 if(this.charts.revenue) this.charts.revenue.destroy();
                 this.charts.revenue = new Chart(ctx, { type: 'doughnut', data: { labels: data.map(b => b.branch_name), datasets: [{ data: data.map(b => b.total_revenue), backgroundColor: ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'] }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } } });
+
+                // 지사별 취소 현황 (plan_phase3.7.1)
+                try {
+                    const cancels = await (await fetch(`${API_BASE}/branches/metrics/cancellations`)).json();
+                    const tb = document.querySelector('#cancel-table tbody');
+                    if(Array.isArray(cancels) && cancels.length) {
+                        tb.innerHTML = cancels.map(c => {
+                            const reasons = Object.entries(c.reasons || {}).map(([k,v]) => `${k} ${v}`).join(' · ') || '-';
+                            const high = c.cancel_count >= 3;  // 3회 이상 = 잦은 취소 지사
+                            return `<tr><td><b>${c.branch_name}</b></td><td><b style="color:${high?'var(--danger)':'var(--text)'};">${c.cancel_count}회${high?' ⚠ 잦음':''}</b></td><td style="font-size:0.78rem; color:var(--text-light);">${reasons}</td></tr>`;
+                        }).join('');
+                    } else {
+                        tb.innerHTML = '<tr><td colspan="3" style="text-align:center; color:var(--text-light);">취소 내역이 없습니다.</td></tr>';
+                    }
+                } catch(e) {}
             },
 
             async loadBranches() {
@@ -433,10 +452,43 @@
                     </div>
                     <div class="edit-input-group"><label>수리 담당 지사</label><select id="edit-req-branch"><option value="">-- 배정 안함 --</option>${approvedBranches.map(b => `<option value="${b.id}" ${r.assigned_branch_id === b.id ? 'selected' : ''}>${b.name}</option>`).join('')}</select></div>
                     <div class="edit-input-group"><label>상태 변경</label><select id="edit-req-status"><option value="PENDING" ${r.status==='PENDING'?'selected':''}>접수대기</option><option value="IN_PROGRESS" ${r.status==='IN_PROGRESS'?'selected':''}>수리중</option><option value="SUSPENDED" ${r.status==='SUSPENDED'?'selected':''}>중단</option><option value="PAYMENT_REQUESTED" ${r.status==='PAYMENT_REQUESTED'?'selected':''}>결제대기</option><option value="COMPLETED" ${r.status==='COMPLETED'?'selected':''}>완료</option><option value="CANCELED" ${r.status==='CANCELED'?'selected':''}>취소</option></select></div>
+                    <div style="margin-top:10px;"><label style="display:block; font-size:0.85rem; color:var(--text-light); margin-bottom:6px; font-weight:700;">배차 이력</label><div id="dispatch-history" style="background:var(--bg); border-radius:12px; padding:12px; font-size:0.78rem; max-height:200px; overflow-y:auto;">불러오는 중...</div></div>
                 `;
                 document.getElementById('modal-save-btn').style.display = '';
                 document.getElementById('modal-save-btn').onclick = () => this.saveRequest(id);
                 document.getElementById('common-modal').classList.add('active');
+                this.loadDispatchHistory(id);
+            },
+            // 요청의 배차 이력 타임라인 로드 (plan_phase3.7.1)
+            async loadDispatchHistory(id) {
+                const el = document.getElementById('dispatch-history');
+                if(!el) return;
+                try {
+                    const events = await (await fetch(`${API_BASE}/requests/${id}/dispatch-events`)).json();
+                    if(!Array.isArray(events) || events.length === 0) {
+                        el.innerHTML = '<span style="color:var(--text-light);">배차 이력이 없습니다.</span>';
+                        return;
+                    }
+                    const meta = {
+                        'BROADCAST':   ['📢 지사에 배포',  '#2563eb'],
+                        'CLAIM':       ['✅ 지사 수락',    '#10b981'],
+                        'RELEASE':     ['❌ 배차 취소',    '#ef4444'],
+                        'TIMEOUT':     ['⏰ 수락 시간 초과', '#f59e0b'],
+                        'ESCALATE':    ['⚠️ 본사 확인 필요', '#ef4444'],
+                        'HQ_ASSIGN':   ['🏢 본사 배정',    '#8b5cf6'],
+                        'REBROADCAST': ['🔁 재배포',       '#f59e0b']
+                    };
+                    el.innerHTML = events.map(e => {
+                        const m = meta[e.event_type] || [e.event_type, '#64748b'];
+                        const t = new Date(e.created_at).toLocaleString('ko-KR', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+                        const who = e.branch_name ? ` · ${e.branch_name}` : '';
+                        const why = e.reason ? ` <span style="color:var(--danger); font-weight:700;">(${e.reason})</span>` : '';
+                        const rd = (e.round_no && e.round_no > 1) ? ` <span style="color:var(--text-light);">${e.round_no}회차</span>` : '';
+                        return `<div style="padding:5px 0; border-bottom:1px solid var(--border);"><b style="color:${m[1]};">${m[0]}</b>${who}${why}${rd}<br><span style="color:var(--text-light); font-size:0.7rem;">${t}</span></div>`;
+                    }).join('');
+                } catch(e) {
+                    el.innerHTML = '<span style="color:var(--danger);">배차 이력을 불러오지 못했습니다.</span>';
+                }
             },
             async saveRequest(id) {
                 const branchId = document.getElementById('edit-req-branch').value;

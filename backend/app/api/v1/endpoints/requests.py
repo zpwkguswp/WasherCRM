@@ -292,6 +292,35 @@ def sla_summary(threshold_minutes: int = 60, session: Session = Depends(get_sess
         "pending_unaccepted_count": pending,
     }
 
+@router.get("/{request_id}/dispatch-events", dependencies=[Depends(require_role("HQ_ADMIN"))])
+def get_dispatch_events(request_id: UUID, session: Session = Depends(get_session)):
+    """본사용: 한 요청의 배차 이벤트 타임라인 (plan_phase3.7.1).
+
+    접수(BROADCAST)→수락(CLAIM)→취소(RELEASE+사유)→재배포→본사확인(ESCALATE) 등을
+    시간순으로 반환한다. 지사 이름은 branch_id로 매핑해 함께 내려준다.
+    """
+    events = session.exec(
+        select(DispatchEvent)
+        .where(DispatchEvent.request_id == request_id)
+        .order_by(DispatchEvent.created_at)
+    ).all()
+    branch_ids = {e.branch_id for e in events if e.branch_id}
+    names = {}
+    if branch_ids:
+        for b in session.exec(select(Branch).where(Branch.id.in_(branch_ids))).all():
+            names[b.id] = b.name
+    return [
+        {
+            "event_type": e.event_type,
+            "reason": e.reason,
+            "branch_id": str(e.branch_id) if e.branch_id else None,
+            "branch_name": names.get(e.branch_id),
+            "round_no": e.round_no,
+            "created_at": e.created_at,
+        }
+        for e in events
+    ]
+
 @router.get("/{request_id}", response_model=RequestRead)
 def get_request(request_id: UUID, session: Session = Depends(get_session)):
     db_request = session.get(ServiceRequest, request_id)

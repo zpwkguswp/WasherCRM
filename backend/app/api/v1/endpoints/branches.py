@@ -6,7 +6,7 @@ from uuid import UUID
 from datetime import datetime
 
 from app.db.session import get_session
-from app.models.domain import Branch, AuditLog, ServiceRequest, Settlement, Payment
+from app.models.domain import Branch, AuditLog, ServiceRequest, Settlement, Payment, DispatchEvent
 from app.schemas.domain import BranchCreate, BranchUpdate, BranchRead
 from app.api.deps import (
     require_role,
@@ -94,6 +94,34 @@ def get_branch_performance(session: Session = Depends(get_session)):
         
     # 실적(매출액) 순으로 정렬해서 반환
     return sorted(metrics, key=lambda x: x["total_revenue"], reverse=True)
+
+
+@router.get("/metrics/cancellations", dependencies=[Depends(require_role("HQ_ADMIN"))])
+def get_cancellation_metrics(session: Session = Depends(get_session)):
+    """본사용: 지사별 배차취소(RELEASE) 집계 — 사유별 건수 포함 (plan_phase3.7.1)."""
+    releases = session.exec(
+        select(DispatchEvent).where(DispatchEvent.event_type == "RELEASE")
+    ).all()
+    bname = {b.id: b.name for b in session.exec(select(Branch)).all()}
+    agg = {}
+    for e in releases:
+        if not e.branch_id:
+            continue
+        a = agg.setdefault(e.branch_id, {"total": 0, "reasons": {}})
+        a["total"] += 1
+        r = e.reason or "기타"
+        a["reasons"][r] = a["reasons"].get(r, 0) + 1
+    result = [
+        {
+            "branch_id": str(bid),
+            "branch_name": bname.get(bid, "(알 수 없음)"),
+            "cancel_count": v["total"],
+            "reasons": v["reasons"],
+        }
+        for bid, v in agg.items()
+    ]
+    result.sort(key=lambda x: x["cancel_count"], reverse=True)
+    return result
 
 @router.post("/", response_model=BranchRead, status_code=status.HTTP_201_CREATED)
 def create_branch(data: BranchCreate, session: Session = Depends(get_session)):
