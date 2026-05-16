@@ -83,6 +83,14 @@ def _broadcast_to_candidates(session: Session, request: ServiceRequest, round_no
     restaurant = session.get(Restaurant, request.restaurant_id)
     candidates = _find_candidate_branches(session, restaurant) if restaurant else []
 
+    # 한 번이라도 이 요청을 취소(RELEASE)한 지사는 후보에서 제외 — 같은 건이 다시 가지 않게.
+    released_branch_ids = set(session.exec(
+        select(DispatchEvent.branch_id)
+        .where(DispatchEvent.request_id == request.id)
+        .where(DispatchEvent.event_type == "RELEASE")
+    ).all())
+    candidates = [b for b in candidates if b.id not in released_branch_ids]
+
     # 후보 지사 매니저 토큰 조회 후 FCM 푸시
     if candidates:
         branch_ids = [b.id for b in candidates]
@@ -208,17 +216,25 @@ def list_requests(
         branch = session.get(Branch, assigned_branch_id)
         region = unassigned_region or (branch.region_code if branch else None)
         
-        # 1. 이미 이 지사에 배정된 요청 OR 
+        # 1. 이미 이 지사에 배정된 요청 OR
         # 2. 아직 배정되지 않았고(PENDING) 식당 주소에 해당 지역명이 포함된 요청
         statement = statement.where(
             or_(
                 ServiceRequest.assigned_branch_id == assigned_branch_id,
                 (
-                    (ServiceRequest.assigned_branch_id == None) & 
+                    (ServiceRequest.assigned_branch_id == None) &
                     (Restaurant.address.contains(region) if region else False)
                 )
             )
         )
+        # 이 지사가 한 번이라도 취소(RELEASE)한 요청은 목록에서 제외 — 다시 보이지 않게.
+        released_ids = list(session.exec(
+            select(DispatchEvent.request_id)
+            .where(DispatchEvent.branch_id == assigned_branch_id)
+            .where(DispatchEvent.event_type == "RELEASE")
+        ).all())
+        if released_ids:
+            statement = statement.where(ServiceRequest.id.not_in(released_ids))
     else:
         if status:
             statement = statement.where(ServiceRequest.status == status)

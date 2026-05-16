@@ -275,10 +275,12 @@
                     });
                     if(!res.ok) {
                         let msg = '로그인에 실패했습니다.';
-                        if(res.status === 401) msg = '전화번호 또는 PIN이 올바르지 않습니다.';
+                        if(res.status === 401) msg = '전화번호 또는 비밀번호(PIN)가 올바르지 않습니다.\n다시 확인해 주세요.';
                         else if(res.status === 423) { try { msg = (await res.json()).detail || msg; } catch(e) {} }
                         errEl.innerText = msg;
                         errEl.style.display = 'block';
+                        document.getElementById('login-pin').value = '';  // 틀린 비번 비우기
+                        alert(msg);
                         return;
                     }
                     const data = await res.json();
@@ -396,11 +398,12 @@
                 // 배차 가능 상태(수락 대기/재배정/본사확인) 또는 기존 PENDING 건을 할당 탭에 노출.
                 const claimable = ['OPEN','REASSIGNING','ESCALATED'];
                 document.getElementById('assigned-list').innerHTML = data.filter(r => {
+                    if(['CANCELED','COMPLETED'].includes(r.status)) return false;  // 취소·완료 건 제외
                     if(r.dispatch_status) return claimable.includes(r.dispatch_status) && r.assigned_branch_id !== this.branch.id;
                     return r.status === 'PENDING';
                 }).reverse().map(r => `<div class="card new-alert">
-                    <div>#${r.id.split('-')[0].toUpperCase()}${this.dispatchBadge(r.dispatch_status)}</div>
-                    <div style="font-weight:800; font-size:1.1rem; color:var(--accent);">${r.restaurant_name}</div>
+                    <div>접수번호 #${r.id.split('-')[0].toUpperCase()}${this.dispatchBadge(r.dispatch_status)}</div>
+                    <a href="tel:${r.restaurant_phone || ''}" style="font-weight:800; font-size:1.1rem; color:var(--accent); text-decoration:none; display:inline-block; margin-top:4px;"><i class="fas fa-phone-alt" style="font-size:0.85rem;"></i> ${r.restaurant_name}</a>
                     <div style="font-size:0.85rem; margin-top:5px;"><i class="fas fa-map-marker-alt"></i> ${r.restaurant_address || r.address || '-'}</div>
                     <div style="font-weight:700; margin-top:5px; color:var(--danger);">${this.categoryLabel(r.category)}</div>
                     <div style="margin-top:8px; padding:10px; background:#f1f5f9; border-radius:8px; font-size:0.88rem; white-space:pre-wrap;">${r.description || '내용 없음'}</div>
@@ -414,20 +417,22 @@
                     return r.assigned_branch_id===this.branch.id && ['CLAIMED','HQ_ASSIGNED'].includes(r.dispatch_status) && !['COMPLETED','CANCELED'].includes(r.status);
                 }).reverse().map(r => `
                     <div class="card" style="border-left-color:var(--warning);" onclick="this.classList.toggle('expanded')">
-                        <div style="display:flex; justify-content:space-between; align-items:center;"><b>${r.restaurant_name}${this.dispatchBadge(r.dispatch_status)}</b><span class="badge" style="background:${r.status==='IN_PROGRESS'?'#f59e0b':r.status==='PENDING'?'#2563eb':'#10b981'}">${r.status==='IN_PROGRESS'?'수리중':r.status==='PENDING'?'수리 예정':'결제대기'}</span></div>
+                        <div style="font-size:0.75rem; color:var(--text-light); margin-bottom:4px;">접수번호 #${r.id.split('-')[0].toUpperCase()}</div>
+                        <div style="display:flex; justify-content:space-between; align-items:center;"><a href="tel:${r.restaurant_phone || ''}" onclick="event.stopPropagation();" style="font-weight:800; color:var(--accent); text-decoration:none;"><i class="fas fa-phone-alt" style="font-size:0.8rem;"></i> ${r.restaurant_name}</a><span style="display:flex; gap:4px; align-items:center;">${r.status!=='SUSPENDED'?this.dispatchBadge(r.dispatch_status):''}${this.progressStatusBadge(r.status)}</span></div>
                         <div class="detail-view">
                             <div style="margin-bottom:8px;"><i class="fas fa-map-marker-alt"></i> ${r.restaurant_address || r.address || '-'}</div>
-                            <div style="margin-bottom:8px;"><i class="fas fa-phone-alt"></i> <a href="tel:${r.restaurant_phone}" onclick="event.stopPropagation();" style="color:var(--accent); font-weight:700;">${r.restaurant_phone || '-'}</a></div>
                             <div style="margin-bottom:10px; padding:10px; background:#f1f5f9; border-radius:8px;">${r.description || '-'}</div>
                             <div style="display:flex; gap:5px; margin-bottom:10px; overflow-x:auto;">
                                 ${(r.media || []).map(m => `<img src="${m.file_url}" style="height:60px; width:60px; object-fit:cover; border-radius:6px;" onclick="event.stopPropagation(); window.open(this.src)">`).join('')}
                             </div>
-                            ${r.status==='PENDING'?`<button class="btn btn-primary" style="margin-top:10px;" onclick="event.stopPropagation(); app.startRepair('${r.id}')"><i class="fas fa-wrench"></i> 수리 시작</button>`:r.status==='IN_PROGRESS'?`<button class="btn btn-primary" style="margin-top:10px;" onclick="event.stopPropagation(); app.openReport('${r.id}')">리포트 작성</button>`:'<div style="margin-top:10px; font-weight:700; color:var(--accent);">결제 대기 중입니다.</div>'}
+                            ${r.status==='PENDING'?`<button class="btn btn-primary" style="margin-top:10px;" onclick="event.stopPropagation(); app.startRepair('${r.id}')"><i class="fas fa-wrench"></i> 수리 시작</button>`:r.status==='IN_PROGRESS'?`<button class="btn btn-primary" style="margin-top:10px;" onclick="event.stopPropagation(); app.openReport('${r.id}')">리포트 작성</button><button class="btn btn-secondary" style="margin-top:10px; color:var(--danger);" onclick="event.stopPropagation(); app.suspendRepair('${r.id}')"><i class="fas fa-pause-circle"></i> 수리 중단</button>`:r.status==='SUSPENDED'?`<div style="margin-top:10px; font-weight:700; color:#6b7280;">⏸ 수리가 중단된 상태입니다.</div><button class="btn btn-primary" style="margin-top:10px;" onclick="event.stopPropagation(); app.resumeRepair('${r.id}')"><i class="fas fa-play-circle"></i> 수리 재진행</button>`:'<div style="margin-top:10px; font-weight:700; color:var(--accent);">결제 대기 중입니다.</div>'}
                             ${(r.dispatch_status==='CLAIMED' && r.assigned_branch_id===this.branch.id && r.status==='PENDING')?`<button class="btn btn-secondary" style="margin-top:10px;" onclick="event.stopPropagation(); app.openReleaseModal('${r.id}')"><i class="fas fa-times-circle"></i> 배차 취소</button>`:''}
                         </div>
                     </div>`).join('') || '<p style="text-align:center; padding:40px;">진행 중인 작업 없음</p>';
 
-                document.getElementById('history-list').innerHTML = data.filter(r => ['COMPLETED','CANCELED'].includes(r.status)).reverse().map(r => `
+                // 내역은 최근 2주(14일)치만 노출 — 오래된 건은 자동으로 숨김
+                const twoWeeksAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
+                document.getElementById('history-list').innerHTML = data.filter(r => ['COMPLETED','CANCELED'].includes(r.status) && new Date(r.created_at).getTime() >= twoWeeksAgo).reverse().map(r => `
                     <div class="card" style="border-left-color:${r.status==='COMPLETED'?'var(--success)':'#94a3b8'};" ${r.status==='COMPLETED' ? `onclick="app.viewReport('${r.id}')"` : ''}>
                         <div style="display:flex; justify-content:space-between; align-items:center;">
                             <b>${r.restaurant_name}</b>
@@ -446,6 +451,26 @@
                 const res = await fetch(`${API_BASE}/requests/${id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status:'IN_PROGRESS'}) });
                 if(res.ok) { alert('수리를 시작합니다.'); this.loadData(); }
                 else { alert('수리 시작에 실패했습니다.'); }
+            },
+            // 수리 중단 — 자기 지사가 처리 불가하거나 다른 지사가 필요할 때. 본사가 중단 건을 확인·재배정한다.
+            async suspendRepair(id) {
+                if(!confirm('수리를 중단하시겠습니까?\n중단된 건은 본사에서 확인 후 처리합니다.')) return;
+                const res = await fetch(`${API_BASE}/requests/${id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status:'SUSPENDED'}) });
+                if(res.ok) { alert('수리가 중단되었습니다. 본사에 전달됩니다.'); this.loadData(); }
+                else { alert('수리 중단 처리에 실패했습니다.'); }
+            },
+            // 중단 사유가 해소되면 수리를 다시 진행 (SUSPENDED → IN_PROGRESS)
+            async resumeRepair(id) {
+                if(!confirm('수리를 다시 진행하시겠습니까?')) return;
+                const res = await fetch(`${API_BASE}/requests/${id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status:'IN_PROGRESS'}) });
+                if(res.ok) { alert('수리를 재진행합니다.'); this.loadData(); }
+                else { alert('재진행 처리에 실패했습니다.'); }
+            },
+            // 진행 탭 상태 뱃지 (라벨·색상)
+            progressStatusBadge(status) {
+                const m = { 'IN_PROGRESS':['수리중','#f59e0b'], 'PENDING':['수리 예정','#2563eb'], 'SUSPENDED':['중단됨','#6b7280'], 'PAYMENT_REQUESTED':['결제대기','#10b981'], 'COMPLETED':['완료','#10b981'] };
+                const x = m[status] || [status, '#94a3b8'];
+                return `<span class="badge" style="background:${x[1]}">${x[0]}</span>`;
             },
 
             // --- 배차 (Phase 3.7) ---

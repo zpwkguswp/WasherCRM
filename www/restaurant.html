@@ -95,11 +95,23 @@
                 </div>
             </div>
             <div id="page-payment-success" class="page">
-                <div style="text-align:center; margin-top:60px;">
+                <div style="text-align:center; margin-top:40px;">
                     <i class="fas fa-check-double" style="font-size:4rem; color:var(--success);"></i>
                     <h2 style="margin-top:20px;">결제 및 수리 완료!</h2>
                     <p style="color:var(--text-light); line-height:1.6;">결제가 성공적으로 처리되었습니다.<br>화이트온 서비스를 이용해 주셔서 감사합니다.</p>
-                    <button class="btn btn-primary" onclick="app.showPage('home'); app.loadRequests();" style="margin-top:30px;">수리 내역 확인하기</button>
+                </div>
+                <div class="card" style="border:none; text-align:center; margin-top:20px;">
+                    <div style="font-weight:800; margin-bottom:6px;">수리 서비스는 만족스러우셨나요?</div>
+                    <div style="font-size:0.8rem; color:var(--text-light); margin-bottom:12px;">별점을 선택해 평가해 주세요.</div>
+                    <div id="survey-stars" style="font-size:2.3rem; color:#fbbf24; margin-bottom:14px;">
+                        <i class="far fa-star" data-v="1" onclick="app.setRating(1)" style="cursor:pointer; margin:0 3px;"></i>
+                        <i class="far fa-star" data-v="2" onclick="app.setRating(2)" style="cursor:pointer; margin:0 3px;"></i>
+                        <i class="far fa-star" data-v="3" onclick="app.setRating(3)" style="cursor:pointer; margin:0 3px;"></i>
+                        <i class="far fa-star" data-v="4" onclick="app.setRating(4)" style="cursor:pointer; margin:0 3px;"></i>
+                        <i class="far fa-star" data-v="5" onclick="app.setRating(5)" style="cursor:pointer; margin:0 3px;"></i>
+                    </div>
+                    <div class="input-group"><textarea id="survey-comment" rows="2" placeholder="후기를 남겨주세요 (선택 사항)"></textarea></div>
+                    <button class="btn btn-primary" onclick="app.submitSurvey()">평가 제출</button>
                 </div>
             </div>
             <div id="page-settings" class="page">
@@ -196,8 +208,9 @@
                     let phone = phoneInput.replace(/[^0-9]/g, '').trim();
                     const pin = document.getElementById('login-pin').value;
                     if(!phone || pin.length !== 4) {
-                        errEl.innerText = '전화번호와 비밀번호 4자리를 입력해 주세요.';
-                        errEl.style.display = 'block';
+                        const msg = '전화번호와 비밀번호 4자리를 모두 입력해 주세요.';
+                        errEl.innerText = msg; errEl.style.display = 'block';
+                        alert(msg);
                         return;
                     }
                     const res = await _origFetch(`${API_BASE}/auth/login/pin`, {
@@ -207,10 +220,12 @@
                     });
                     if(!res.ok) {
                         let msg = '로그인에 실패했습니다.';
-                        if(res.status === 401) msg = '전화번호 또는 PIN이 올바르지 않습니다.';
+                        if(res.status === 401) msg = '전화번호 또는 비밀번호(PIN)가 올바르지 않습니다.\n전화번호와 비밀번호를 다시 확인해 주세요.';
                         else if(res.status === 423) { try { msg = (await res.json()).detail || msg; } catch(e) {} }
                         errEl.innerText = msg;
                         errEl.style.display = 'block';
+                        document.getElementById('login-pin').value = '';  // 틀린 비번 비우기
+                        alert(msg);
                         return;
                     }
                     const data = await res.json();
@@ -233,8 +248,9 @@
                         this.showPage('waiting');
                     }
                 } catch(e) {
-                    errEl.innerText = '로그인 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.';
-                    errEl.style.display = 'block';
+                    const msg = '로그인 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.';
+                    errEl.innerText = msg; errEl.style.display = 'block';
+                    alert(msg);
                 } finally {
                     if(btn) { btn.innerText = originalText; btn.disabled = false; }
                 }
@@ -317,7 +333,7 @@
                 const res = await fetch(`${API_BASE}/restaurants/`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, phone, region, address: `${addr} ${detail}`}) });
                 if(res.ok) this.showPage('reg-success'); else { const err = await res.json(); alert(err.detail || '가입 신청 실패'); }
             },
-            switchTab(id) { document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active')); event.currentTarget.classList.add('active'); this.showPage(id); if(id==='home') this.loadRequests(); },
+            switchTab(id) { document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active')); event.currentTarget.classList.add('active'); this.showPage(id); if(id==='home') this.loadRequests(); if(id==='request') this.resetRequestForm(); },
             async loadRequests() {
                 const res = await fetch(`${API_BASE}/requests/?restaurant_id=${this.restaurant.id}`);
                 const data = await res.json();
@@ -356,9 +372,25 @@
                                 ` : ''}
                                 <div style="margin-bottom:10px;"><b style="font-size:0.75rem;">📋 접수 당시 내용:</b><br><div style="padding:10px; background:white; border-radius:10px; margin-top:5px; border:1px solid var(--border);">${r.description || '-'}</div></div>
                                 ${r.media && r.media.length > 0 ? `<div style="font-size:0.7rem; color:var(--text-light); margin-bottom:4px;">[접수 시 첨부사진]</div><div class="media-box" style="opacity:0.8; height:120px;"><img src="${r.media[0].file_url}" style="height:100%; object-fit:cover; width:100%;"></div>` : ''}
+                                ${(r.status==='PENDING' && !['CLAIMED','HQ_ASSIGNED'].includes(r.dispatch_status)) ? `<button type="button" class="btn btn-secondary" style="margin-top:12px; color:var(--danger);" onclick="event.stopPropagation(); app.cancelRequest('${r.id}')">신청 취소하기</button>` : ''}
                             </div>
                         </div>`;
                 }).join('') || '<p style="text-align:center; color:var(--text-light);">신청 내역이 없습니다.</p>';
+            },
+            // 신청 화면 진입 시 폼 초기화 — 이전 입력이 남지 않게
+            resetRequestForm() {
+                const cat = document.getElementById('req-category'); if(cat) cat.selectedIndex = 0;
+                const desc = document.getElementById('req-description'); if(desc) desc.value = '';
+                const file = document.getElementById('req-file'); if(file) file.value = '';
+            },
+            // 매니저 수락 전까지 식당이 신청을 취소할 수 있다
+            async cancelRequest(id) {
+                if(!confirm('이 수리 신청을 취소하시겠습니까?')) return;
+                try {
+                    const res = await fetch(`${API_BASE}/requests/${id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status:'CANCELED', dispatch_status:'CANCELLED'}) });
+                    if(res.ok) { alert('신청이 취소되었습니다.'); this.loadRequests(); }
+                    else { let msg='취소에 실패했습니다.'; try{ msg=(await res.json()).detail||msg; }catch(e){} alert(msg); }
+                } catch(e) { alert('취소 처리 중 오류가 발생했습니다.'); }
             },
             async submitRequest() {
                 const cat = document.getElementById('req-category').value; const desc = document.getElementById('req-description').value;
@@ -384,12 +416,46 @@
 
                 if(res.ok) {
                     alert('가상 결제가 성공적으로 완료되었습니다. 수리 완료 처리되었습니다.');
+                    // 만족도 조사 초기화 후 결제완료 화면으로
+                    this.lastPaidRequestId = reqId;
+                    this.surveyRating = 0;
+                    document.getElementById('survey-comment').value = '';
+                    document.querySelectorAll('#survey-stars i').forEach(s => s.className = 'far fa-star');
                     this.showPage('payment-success');
                     this.loadRequests();
                 } else {
                     let msg = '결제 처리 중 오류가 발생했습니다.';
                     try { msg = (await res.json()).detail || msg; } catch(e) {}
                     alert(msg);
+                }
+            },
+            // 만족도 별점 선택 (1~5)
+            setRating(n) {
+                this.surveyRating = n;
+                document.querySelectorAll('#survey-stars i').forEach(s => {
+                    s.className = (parseInt(s.dataset.v) <= n) ? 'fas fa-star' : 'far fa-star';
+                });
+            },
+            // 만족도 평가 제출 — metadata.survey에 저장 (관제·성과 보드에 반영됨)
+            async submitSurvey() {
+                if(!this.surveyRating) return alert('별점을 선택해 주세요.');
+                const id = this.lastPaidRequestId;
+                if(!id) return this.showPage('home');
+                try {
+                    const cur = await (await fetch(`${API_BASE}/requests/${id}`)).json();
+                    let meta = cur.metadata;
+                    if(typeof meta === 'string') { try { meta = JSON.parse(meta); } catch(e) { meta = {}; } }
+                    meta = meta || {};
+                    meta.survey = { rating: this.surveyRating, comment: document.getElementById('survey-comment').value.trim() };
+                    const res = await fetch(`${API_BASE}/requests/${id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ metadata: meta }) });
+                    if(res.ok) {
+                        alert('소중한 평가 감사합니다!');
+                        this.showPage('home'); this.loadRequests();
+                    } else {
+                        alert('평가 제출에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+                    }
+                } catch(e) {
+                    alert('평가 제출 중 오류가 발생했습니다.');
                 }
             },
             preparePayment(id) {
@@ -408,9 +474,9 @@
             },
             // 배정 상태 반영 — 접수(PENDING)됐지만 지사가 수락·배정되면 'ASSIGNED'로 표시
             effStatus(r) { return (r.status === 'PENDING' && ['CLAIMED','HQ_ASSIGNED'].includes(r.dispatch_status)) ? 'ASSIGNED' : r.status; },
-            getStatColor(s) { const map={'PENDING':'#f59e0b', 'ASSIGNED':'#2563eb', 'IN_PROGRESS':'#3b82f6', 'PAYMENT_REQUESTED':'#10b981', 'COMPLETED':'#64748b'}; return map[s]||'#000'; },
-            formatStat(s) { const map={'PENDING':'접수대기', 'ASSIGNED':'지사 배정완료', 'IN_PROGRESS':'수리중', 'PAYMENT_REQUESTED':'결제대기', 'COMPLETED':'수리완료'}; return map[s]||s; },
-            getStatDesc(s) { const map={'PENDING':'본사에서 지사를 배정 중입니다.', 'ASSIGNED':'담당 지사가 배정되었습니다. 곧 수리가 진행됩니다.', 'IN_PROGRESS':'지사 매니저가 현장 수리 중입니다.', 'PAYMENT_REQUESTED':'수리가 완료되었습니다. 결제 후 수리 리포트를 확인하세요.', 'COMPLETED':'수리가 완료되었으며 결제가 끝났습니다.'}; return map[s]||''; }
+            getStatColor(s) { const map={'PENDING':'#f59e0b', 'ASSIGNED':'#2563eb', 'IN_PROGRESS':'#3b82f6', 'SUSPENDED':'#6b7280', 'PAYMENT_REQUESTED':'#10b981', 'COMPLETED':'#64748b', 'CANCELED':'#94a3b8'}; return map[s]||'#000'; },
+            formatStat(s) { const map={'PENDING':'접수대기', 'ASSIGNED':'지사 배정완료', 'IN_PROGRESS':'수리중', 'SUSPENDED':'중단됨', 'PAYMENT_REQUESTED':'결제대기', 'COMPLETED':'수리완료', 'CANCELED':'취소됨'}; return map[s]||s; },
+            getStatDesc(s) { const map={'PENDING':'본사에서 지사를 배정 중입니다.', 'ASSIGNED':'담당 지사가 배정되었습니다. 곧 수리가 진행됩니다.', 'IN_PROGRESS':'지사 매니저가 현장 수리 중입니다.', 'SUSPENDED':'수리가 일시 중단되었습니다. 본사에서 확인 후 다시 진행됩니다.', 'PAYMENT_REQUESTED':'수리가 완료되었습니다. 결제 후 수리 리포트를 확인하세요.', 'COMPLETED':'수리가 완료되었으며 결제가 끝났습니다.', 'CANCELED':'취소된 신청입니다.'}; return map[s]||''; }
         };
     </script>
 </body>

@@ -6,7 +6,7 @@ from uuid import UUID
 from datetime import datetime
 
 from app.db.session import get_session
-from app.models.domain import Branch, AuditLog, ServiceRequest, Settlement
+from app.models.domain import Branch, AuditLog, ServiceRequest, Settlement, Payment
 from app.schemas.domain import BranchCreate, BranchUpdate, BranchRead
 from app.api.deps import (
     require_role,
@@ -35,17 +35,16 @@ def get_branch_performance(session: Session = Depends(get_session)):
             .where(ServiceRequest.status == "COMPLETED")
         ).one()
         
-        # 지사별 총 매출액 및 본사 수수료 계산 (Settlement 테이블 기준)
-        # §4.1 재설계: Settlement.total_amount → Settlement.gross_amount
-        revenue_data = session.exec(
-            select(
-                func.sum(Settlement.gross_amount).label("total_revenue"),
-                func.sum(Settlement.hq_commission).label("total_commission")
-            )
-            .where(Settlement.branch_id == b.id)
-        ).first()
-        
-        total_rev = float(revenue_data[0] or 0)
+        # 지사별 총 매출액 — 실제 결제(Payment, PAID) 합계 기준.
+        # 정산(Settlement)은 주간 배치로 생성되므로 실시간 성과 보드는 결제 내역을 직접 집계한다.
+        total_rev = float(session.exec(
+            select(func.coalesce(func.sum(Payment.amount), 0))
+            .join(ServiceRequest, Payment.request_id == ServiceRequest.id)
+            .where(ServiceRequest.assigned_branch_id == b.id)
+            .where(Payment.status == "PAID")
+        ).one() or 0)
+        # 본사 수수료 — 지사 수수료율 기준 추정치
+        total_commission = round(total_rev * float(b.commission_rate or 10) / 100, 2)
         
         # 등급 및 수수료 자동 계산 (새로운 정책 반영)
         tier = "BRONZE"
@@ -89,7 +88,7 @@ def get_branch_performance(session: Session = Depends(get_session)):
             "progress": progress,
             "completed_requests": len(all_completed),
             "total_revenue": total_rev,
-            "total_hq_commission": float(revenue_data[1] or 0),
+            "total_hq_commission": total_commission,
             "avg_satisfaction": avg_rating
         })
         

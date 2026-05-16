@@ -45,7 +45,7 @@
         .table-responsive { width: 100%; overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); background: white; -webkit-overflow-scrolling: touch; }
         table { width: 100%; border-collapse: collapse; min-width: 800px; }
         th { text-align: left; padding: 12px 15px; border-bottom: 2px solid var(--border); color: var(--text-light); font-size: 0.75rem; background: #fafafa; font-weight: 800; }
-        td { padding: 15px; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+        td { padding: 15px; border-bottom: 1px solid var(--border); font-size: 0.85rem; white-space: nowrap; }
 
         .badge { padding: 4px 10px; border-radius: 6px; font-size: 0.7rem; font-weight: 800; color: white; text-transform: uppercase; }
         .badge-pending { background: #ef4444; }
@@ -120,9 +120,9 @@
         <div class="logo-section" onclick="app.showPage('dashboard')" style="cursor:pointer;"><img src="/static/logo.png" alt="WhiteOn"></div>
         <div class="nav-menu">
             <div class="nav-item active" data-page="dashboard" onclick="app.showPage('dashboard')"><i class="fas fa-chart-line"></i> 성과 분석</div>
+            <div class="nav-item" data-page="requests" onclick="app.showPage('requests')"><i class="fas fa-tools"></i> 수리 내역 관제</div>
             <div class="nav-item" data-page="branches" onclick="app.showPage('branches')"><i class="fas fa-network-wired"></i> 지사 파트너</div>
             <div class="nav-item" data-page="restaurants" onclick="app.showPage('restaurants')"><i class="fas fa-store"></i> 고객 식당</div>
-            <div class="nav-item" data-page="requests" onclick="app.showPage('requests')"><i class="fas fa-tools"></i> 수리 내역 관제</div>
         </div>
     </div>
 
@@ -213,9 +213,9 @@
 
         <nav class="mobile-nav">
             <div class="mobile-nav-item active" onclick="app.showPage('dashboard')" data-m-page="dashboard"><i class="fas fa-chart-line"></i><span>성과</span></div>
+            <div class="mobile-nav-item" onclick="app.showPage('requests')" data-m-page="requests"><i class="fas fa-tools"></i><span>관제</span></div>
             <div class="mobile-nav-item" onclick="app.showPage('branches')" data-m-page="branches"><i class="fas fa-network-wired"></i><span>지사</span></div>
             <div class="mobile-nav-item" onclick="app.showPage('restaurants')" data-m-page="restaurants"><i class="fas fa-store"></i><span>식당</span></div>
-            <div class="mobile-nav-item" onclick="app.showPage('requests')" data-m-page="requests"><i class="fas fa-tools"></i><span>관제</span></div>
         </nav>
     </div>
 
@@ -334,7 +334,11 @@
                 this.cache.requests = data;
                 
                 const stats = { PENDING:0, IN_PROGRESS:0, SUSPENDED:0, PAYMENT_REQUESTED:0, COMPLETED:0, CANCELED:0 };
-                data.forEach(r => { if(stats[r.status] !== undefined) stats[r.status]++; });
+                data.forEach(r => {
+                    // 지사가 수락·배정된 건은 더 이상 '접수대기'가 아니므로 수리중으로 집계
+                    const st = (r.status === 'PENDING' && ['CLAIMED','HQ_ASSIGNED'].includes(r.dispatch_status)) ? 'IN_PROGRESS' : r.status;
+                    if(stats[st] !== undefined) stats[st]++;
+                });
                 document.getElementById('stat-pending').innerText = stats.PENDING;
                 document.getElementById('stat-progress').innerText = stats.IN_PROGRESS;
                 document.getElementById('stat-suspended').innerText = stats.SUSPENDED;
@@ -388,6 +392,7 @@
                     <div class="edit-input-group"><label>상세 주소</label><input type="text" id="edit-b-addr" value="${b.address}"></div>
                     <div class="edit-input-group"><label>수수료율 (%)</label><input type="number" id="edit-b-rate" value="${b.commission_rate}"></div>
                 `;
+                document.getElementById('modal-save-btn').style.display = '';
                 document.getElementById('modal-save-btn').onclick = () => this.saveBranch(id);
                 document.getElementById('common-modal').classList.add('active');
             },
@@ -406,6 +411,7 @@
                     <div class="edit-input-group"><label>전체 주소</label><input type="text" id="edit-r-addr" value="${r.address}"></div>
                     <div class="edit-input-group"><label>연락처</label><input type="text" id="edit-r-phone" value="${r.phone}"></div>
                 `;
+                document.getElementById('modal-save-btn').style.display = '';
                 document.getElementById('modal-save-btn').onclick = () => this.saveRestaurant(id);
                 document.getElementById('common-modal').classList.add('active');
             },
@@ -426,6 +432,7 @@
                     <div class="edit-input-group"><label>수리 담당 지사</label><select id="edit-req-branch"><option value="">-- 배정 안함 --</option>${approvedBranches.map(b => `<option value="${b.id}" ${r.assigned_branch_id === b.id ? 'selected' : ''}>${b.name}</option>`).join('')}</select></div>
                     <div class="edit-input-group"><label>상태 변경</label><select id="edit-req-status"><option value="PENDING" ${r.status==='PENDING'?'selected':''}>접수대기</option><option value="IN_PROGRESS" ${r.status==='IN_PROGRESS'?'selected':''}>수리중</option><option value="SUSPENDED" ${r.status==='SUSPENDED'?'selected':''}>중단</option><option value="PAYMENT_REQUESTED" ${r.status==='PAYMENT_REQUESTED'?'selected':''}>결제대기</option><option value="COMPLETED" ${r.status==='COMPLETED'?'selected':''}>완료</option><option value="CANCELED" ${r.status==='CANCELED'?'selected':''}>취소</option></select></div>
                 `;
+                document.getElementById('modal-save-btn').style.display = '';
                 document.getElementById('modal-save-btn').onclick = () => this.saveRequest(id);
                 document.getElementById('common-modal').classList.add('active');
             },
@@ -481,7 +488,8 @@
                 const res = await fetch(`${API_BASE}/requests/${id}`);
                 const r = await res.json();
                 let m = r.metadata; if(typeof m === 'string') try { m = JSON.parse(m); } catch(e) { m = {}; } m = m || {};
-                const s = m.survey || {}; const bill = m.bill_items || [];
+                const s = m.survey || {}; const bill = m.billing_items || [];
+                document.getElementById('modal-save-btn').style.display = 'none';  // 리포트 조회 — 저장 버튼 숨김(닫기만)
                 document.getElementById('modal-title').innerText = `📋 수리 상세 리포트 (#${id.split('-')[0].toUpperCase()})`;
                 document.getElementById('modal-body').innerHTML = `
                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:15px;">
@@ -494,7 +502,7 @@
                             <div style="font-size:0.7rem;"><b>원인:</b> ${m.report?.cause || '-'}<br><b>해결:</b> ${m.report?.sol || '-'}</div>
                         </div>
                     </div>
-                    <div class="card" style="margin-bottom:15px; padding:12px;"><h4 style="margin:0 0 5px 0; font-size:0.75rem;">💳 정산 상세 (₩${(m.requested_amount || 0).toLocaleString()})</h4><div style="font-size:0.7rem;">${bill.map(i => `<div style="display:flex; justify-content:space-between;"><span>${i.name}</span><b>₩${i.amt.toLocaleString()}</b></div>`).join('') || '내역 없음'}</div></div>
+                    <div class="card" style="margin-bottom:15px; padding:12px;"><h4 style="margin:0 0 5px 0; font-size:0.75rem;">💳 정산 상세 (₩${(m.requested_amount || 0).toLocaleString()})</h4><div style="font-size:0.7rem;">${bill.map(i => `<div style="display:flex; justify-content:space-between;"><span>${i.description || '-'}</span><b>₩${Number(i.amount||0).toLocaleString()}</b></div>`).join('') || '내역 없음'}${(m.supply_amount!=null)?`<div style="border-top:1px dashed #cbd5e1; margin-top:6px; padding-top:6px; display:flex; justify-content:space-between; color:var(--text-light);"><span>공급가액 / 부가세</span><span>₩${Number(m.supply_amount||0).toLocaleString()} / ₩${Number(m.vat||0).toLocaleString()}</span></div>`:''}</div></div>
                     <div class="card" style="margin-bottom:15px; padding:12px; background:#fffdf5;"><h4 style="margin:0 0 5px 0; font-size:0.75rem; color:#854d0e;">⭐ 고객 만족도</h4><div style="font-size:0.7rem;"><b>별점:</b> <span style="color:var(--warning);">${s.rating ? '⭐'.repeat(s.rating) : '평가 전'}</span><br><b>의견:</b> ${s.comment || '의견 없음'}</div></div>
                     <h4 style="font-size:0.75rem; margin-bottom:10px;">📸 현장 사진</h4>
                     <div style="display:flex; gap:8px; overflow-x:auto; padding-bottom:10px;">${(r.media || []).map((file, idx) => `<div style="position:relative; min-width:100px;"><img src="${file.file_url}" style="height:100px; width:100px; border-radius:12px; object-fit:cover; border:1px solid var(--border); cursor:pointer;" onclick="window.open(this.src)"><div style="position:absolute; bottom:5px; left:5px; right:5px; background:rgba(0,0,0,0.6); color:white; font-size:0.6rem; text-align:center; border-radius:4px; padding:2px;">${idx === 0 ? '📸 접수' : '🛠️ 완료'}</div></div>`).join('') || '<p style="font-size:0.7rem; color:#94a3b8;">사진 없음</p>'}</div>
