@@ -49,7 +49,9 @@ class ServiceRequest(SQLModel, table=True):
     metadata_json: Optional[dict] = Field(default_factory=dict, sa_column=Column("metadata", JSON))
     
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    notified_at: Optional[datetime] = None   # 지사 브로드캐스트 시각 (SLA 시작점)
     assigned_at: Optional[datetime] = None
+    accepted_at: Optional[datetime] = None   # 지사 최초 수락 시각 (SLA 종료점)
     completed_at: Optional[datetime] = None
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     
