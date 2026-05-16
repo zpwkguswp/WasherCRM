@@ -68,8 +68,10 @@
             <div id="page-login" class="page active">
                 <div style="text-align:center; margin:40px 0;"><i class="fas fa-user-shield" style="font-size:3rem; color:var(--accent);"></i><h2>매니저 로그인</h2></div>
                 <div class="card" style="border:none;">
-                    <div class="input-group"><label>전화번호</label><input type="text" id="login-phone" placeholder="'-' 제외 입력"><button style="position:absolute; right:8px; bottom:6px; padding:6px 12px; border-radius:8px; font-size:0.75rem; background:#f1f5f9; border:1px solid var(--border); cursor:pointer; font-weight:700;" onclick="app.sendOTP()">인증번호</button></div>
-                    <div id="otp-group" class="input-group" style="display:none;"><label>인증번호</label><input type="text" id="login-otp" placeholder="숫자 6자리 입력"></div>
+                    <div class="input-group"><label style="font-size:0.95rem;">전화번호</label><input type="tel" id="login-phone" placeholder="'-' 제외 입력" style="font-size:1.1rem; padding:15px;"></div>
+                    <div class="input-group"><label style="font-size:0.95rem;">비밀번호 (숫자 4자리)</label><input type="password" id="login-pin" inputmode="numeric" maxlength="4" placeholder="● ● ● ●" style="font-size:1.4rem; padding:15px; text-align:center; letter-spacing:0.4rem;" onkeydown="if(event.key==='Enter') app.login()"></div>
+                    <p style="font-size:0.8rem; color:var(--text-light); margin:-5px 0 12px; text-align:center;">최초 비밀번호는 <b style="color:var(--accent);">0000</b> 입니다.</p>
+                    <div id="login-error" style="display:none; color:var(--danger); font-size:0.85rem; margin-bottom:12px; font-weight:700; text-align:center;"></div>
                     <button class="btn btn-primary" onclick="app.login()">로그인</button>
                     <button class="btn btn-secondary" onclick="app.showPage('register')" style="margin-top:10px; background:none; font-size:0.8rem; text-decoration:underline;">지사 가입 신청하기</button>
                 </div>
@@ -102,6 +104,13 @@
                     <div class="input-group"><label>상세 주소</label><input type="text" id="profile-addr-detail"></div>
                     <button class="btn btn-primary" onclick="app.saveProfile()">저장하기</button>
                     <button class="btn btn-secondary" style="margin-top:10px;" onclick="app.switchTab('assigned')">취소</button>
+                </div>
+
+                <h2 style="margin-top:25px;">비밀번호 변경</h2>
+                <div class="card" style="border:none;">
+                    <div class="input-group"><label style="font-size:0.95rem;">새 비밀번호 (숫자 4자리)</label><input type="password" id="new-pin" inputmode="numeric" maxlength="4" placeholder="● ● ● ●" style="font-size:1.4rem; padding:15px; text-align:center; letter-spacing:0.4rem;"></div>
+                    <div class="input-group"><label style="font-size:0.95rem;">새 비밀번호 확인</label><input type="password" id="new-pin-confirm" inputmode="numeric" maxlength="4" placeholder="● ● ● ●" style="font-size:1.4rem; padding:15px; text-align:center; letter-spacing:0.4rem;"></div>
+                    <button class="btn btn-primary" onclick="app.changePin()">비밀번호 변경하기</button>
                 </div>
             </div>
         </div>
@@ -155,21 +164,104 @@
 
     <script>
         const API_BASE = "/api/v1";
+        const TOKEN_KEY = "branch_token";
+
+        // 지사 로그인 토큰을 모든 API 호출에 자동 첨부 (Phase 3.2 §7).
+        // 기존 fetch 호출을 일일이 수정하지 않도록 window.fetch를 한 번만 감싼다.
+        const _origFetch = window.fetch.bind(window);
+        window.fetch = function(url, options) {
+            options = options || {};
+            const u = (typeof url === 'string') ? url : '';
+            const isApi = u.indexOf(API_BASE) !== -1;
+            const isLogin = u.indexOf('/auth/login') !== -1;
+            const token = localStorage.getItem(TOKEN_KEY);
+            if (token && isApi && !isLogin) {
+                options.headers = Object.assign({}, options.headers, { 'Authorization': 'Bearer ' + token });
+            }
+            return _origFetch(url, options).then(function(res) {
+                if (res.status === 401 && isApi && !isLogin) {
+                    app.logout();
+                }
+                return res;
+            });
+        };
+
         const app = {
-            branch: null, generatedOTP: "111111", currentRequestId: null,
+            branch: null, currentRequestId: null,
             showPage(id) { document.querySelectorAll('.page').forEach(p => p.classList.remove('active')); document.getElementById('page-' + id).classList.add('active'); const isMain = !['login','waiting','register'].includes(id); document.getElementById('manager-nav').style.display = (isMain && id !== 'profile') ? 'flex' : 'none'; document.getElementById('header-user-name').style.display = isMain ? 'block' : 'none'; if(id === 'profile') this.loadProfile(); },
             closeModal(id) { document.getElementById('modal-' + id).style.display = 'none'; },
-            sendOTP() { alert(`인증번호가 발송되었습니다: [${this.generatedOTP}]`); document.getElementById(`otp-group`).style.display = 'block'; },
             searchAddress(prefix = 'reg') { new daum.Postcode({ oncomplete: (data) => { document.getElementById(prefix + '-addr').value = data.address; const parts = data.address.split(' ').filter(p => p.length > 0); this.tempRegion = parts.length >= 2 ? parts[1] : (parts[0] || ""); }}).open(); },
-            
+
             async login() {
                 const phone = document.getElementById('login-phone').value.replace(/[^0-9]/g, '');
-                const otp = document.getElementById('login-otp').value;
-                if(!otp || otp !== this.generatedOTP) return alert('인증번호를 확인해 주세요.');
+                const pin = document.getElementById('login-pin').value;
+                const errEl = document.getElementById('login-error');
+                errEl.style.display = 'none';
+                if(!phone || pin.length !== 4) {
+                    errEl.innerText = '전화번호와 비밀번호 4자리를 입력해 주세요.';
+                    errEl.style.display = 'block';
+                    return;
+                }
+                try {
+                    const res = await _origFetch(`${API_BASE}/auth/login/pin`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ phone, pin, user_type: 'BRANCH' })
+                    });
+                    if(!res.ok) {
+                        let msg = '로그인에 실패했습니다.';
+                        if(res.status === 401) msg = '전화번호 또는 PIN이 올바르지 않습니다.';
+                        else if(res.status === 423) { try { msg = (await res.json()).detail || msg; } catch(e) {} }
+                        errEl.innerText = msg;
+                        errEl.style.display = 'block';
+                        return;
+                    }
+                    const data = await res.json();
+                    localStorage.setItem(TOKEN_KEY, data.access_token);
+                    document.getElementById('login-pin').value = '';
+                    await this.enterApp(phone);
+                } catch(e) {
+                    errEl.innerText = '로그인 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.';
+                    errEl.style.display = 'block';
+                }
+            },
+            async enterApp(phone) {
+                // 로그인 성공 후 토큰으로 지사 정보를 불러온다.
                 const res = await (await fetch(`${API_BASE}/branches/`)).json();
                 const found = res.find(b => (b.manager_phone || '').replace(/[^0-9]/g, '') === phone);
-                if(found) { this.branch = found; document.getElementById('header-user-name').innerText = found.name + "님"; if(!found.is_approved) return this.showPage('waiting'); this.showPage('assigned'); this.loadData(); }
-                else alert('등록된 정보가 없습니다.');
+                if(found) {
+                    this.branch = found;
+                    document.getElementById('header-user-name').innerText = found.name + "님";
+                    if(!found.is_approved) return this.showPage('waiting');
+                    this.showPage('assigned');
+                    this.loadData();
+                } else {
+                    this.showPage('waiting');
+                }
+            },
+            async changePin() {
+                const pin = document.getElementById('new-pin').value;
+                const confirmPin = document.getElementById('new-pin-confirm').value;
+                if(pin.length !== 4 || !/^[0-9]{4}$/.test(pin)) return alert('새 비밀번호는 숫자 4자리여야 합니다.');
+                if(pin !== confirmPin) return alert('새 비밀번호가 일치하지 않습니다. 다시 확인해 주세요.');
+                try {
+                    const res = await fetch(`${API_BASE}/auth/pin`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ new_pin: pin })
+                    });
+                    if(res.ok) {
+                        alert('비밀번호가 변경되었습니다.');
+                        document.getElementById('new-pin').value = '';
+                        document.getElementById('new-pin-confirm').value = '';
+                    } else {
+                        let msg = '비밀번호 변경에 실패했습니다.';
+                        try { msg = (await res.json()).detail || msg; } catch(e) {}
+                        alert(msg);
+                    }
+                } catch(e) {
+                    alert('비밀번호 변경 중 오류가 발생했습니다.');
+                }
             },
 
             async registerBranch() {
@@ -342,7 +434,15 @@
                 `;
                 document.getElementById('modal-view-report').style.display = 'block';
             },
-            logout() { this.branch = null; this.showPage('login'); }
+            logout() {
+                localStorage.removeItem(TOKEN_KEY);
+                this.branch = null;
+                const errEl = document.getElementById('login-error');
+                if(errEl) errEl.style.display = 'none';
+                const pinEl = document.getElementById('login-pin');
+                if(pinEl) pinEl.value = '';
+                this.showPage('login');
+            }
         };
     </script>
 </body>
