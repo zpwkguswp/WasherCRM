@@ -9,7 +9,7 @@ def get_session():
 
 def init_db():
     # 모델들을 임포트하여 metadata에 등록되도록 함
-    from app.models.domain import Branch, Restaurant, ServiceRequest, RequestMedia, Payment, Settlement
+    from app.models.domain import Branch, Restaurant, ServiceRequest, RequestMedia, Payment, Settlement, DispatchEvent
     from sqlmodel import text, Session
     SQLModel.metadata.create_all(engine)
     
@@ -66,3 +66,15 @@ def init_db():
         except Exception as e:
             session.rollback()
             print(f"PIN column add error: {e}")
+
+        # 6. [배차 plan_phase3.7] service_requests 배차 컬럼
+        #    (dispatch_events 테이블은 SQLModel.metadata.create_all이 생성)
+        try:
+            session.execute(text("ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS dispatch_status VARCHAR;"))
+            session.execute(text("ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS cancel_count INTEGER DEFAULT 0;"))
+            session.execute(text("ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS dispatch_deadline TIMESTAMP;"))
+            session.commit()
+            print("Successfully added dispatch columns to service_requests")
+        except Exception as e:
+            session.rollback()
+            print(f"Dispatch column add error: {e}")

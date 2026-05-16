@@ -1,14 +1,19 @@
-from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Body
 from fastapi.encoders import jsonable_encoder
 from sqlmodel import Session, select
+from sqlalchemy import update as sa_update, or_, String, func
+from sqlalchemy.orm import selectinload
 from typing import List, Optional
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timedelta
 import shutil
 import os
 
 from app.db.session import get_session
-from app.models.domain import ServiceRequest, AuditLog, RequestMedia, DeviceToken, Branch, Restaurant, Payment, Settlement
+from app.models.domain import (
+    ServiceRequest, AuditLog, RequestMedia, DeviceToken, Branch, Restaurant,
+    Payment, Settlement, DispatchEvent,
+)
 from app.schemas.domain import RequestCreate, RequestUpdate, RequestRead
 from app.utils.notifications import send_push_notification
 from app.services.storage import storage
@@ -16,15 +21,125 @@ from app.api.deps import require_role, get_current_user, assert_request_access
 
 router = APIRouter()
 
+# 배차 (plan_phase3.7) — 수락 대기 상태 / 타임아웃 / 재배포 한계
+DISPATCH_OPEN_STATES = ("OPEN", "REASSIGNING", "ESCALATED")  # 지사가 수락 가능한 상태
+DISPATCH_TIMEOUT_MINUTES = 60   # 수락 대기 타임아웃 (대표 확정 2026-05-16)
+DISPATCH_REBROADCAST_LIMIT = 2  # 재배포 한계 — 3번째 취소부터 ESCALATED
+
+
+def _hq_device_tokens(session: Session) -> List[str]:
+    """본사(HQ) 알림용 FCM 토큰 목록. HQ 토큰이 없으면 빈 리스트(무해)."""
+    try:
+        rows = session.exec(
+            select(DeviceToken.token).where(
+                DeviceToken.user_type.in_(("HQ", "HQ_ADMIN")),
+                DeviceToken.is_active == True,
+            )
+        ).all()
+        return list(rows)
+    except Exception as e:
+        print(f"HQ token lookup error: {e}")
+        return []
+
+
+def _notify_hq(session: Session, title: str, body: str, request_id: UUID):
+    """본사에 FCM 알림 — 베스트에포트(실패해도 배차 흐름은 진행)."""
+    try:
+        tokens = _hq_device_tokens(session)
+        if tokens:
+            send_push_notification(
+                tokens=tokens,
+                title=title,
+                body=body,
+                data={"request_id": str(request_id)},
+            )
+    except Exception as e:
+        print(f"HQ notification error: {e}")
+
+
+def _find_candidate_branches(session: Session, restaurant: Restaurant) -> List[Branch]:
+    """후보 지사 선정 — create_request의 지역 매칭 로직 재사용.
+
+    식당 region이 지사 region_code와 일치하거나, 식당 address에 region_code가
+    포함된 지사를 후보로 반환한다.
+    """
+    branches = session.exec(select(Branch)).all()
+    candidates: List[Branch] = []
+    for b in branches:
+        rc = b.region_code
+        if not rc:
+            continue
+        if rc == restaurant.region or (restaurant.address and rc in restaurant.address):
+            candidates.append(b)
+    return candidates
+
+
+def _broadcast_to_candidates(session: Session, request: ServiceRequest, round_no: int = 1) -> int:
+    """공용 배차 함수 — 후보 지사 선정 + FCM 푸시 + 마감시각 세팅 + BROADCAST 이벤트.
+
+    앱 접수(create_request)와 재배포(release/rebroadcast)가 공유한다.
+    반환값: 후보 지사 수. 호출자는 0이면 ESCALATED 처리를 해야 한다.
+    """
+    restaurant = session.get(Restaurant, request.restaurant_id)
+    candidates = _find_candidate_branches(session, restaurant) if restaurant else []
+
+    # 후보 지사 매니저 토큰 조회 후 FCM 푸시
+    if candidates:
+        branch_ids = [b.id for b in candidates]
+        try:
+            token_rows = session.exec(
+                select(DeviceToken.token).where(
+                    DeviceToken.user_id.in_(branch_ids),
+                    DeviceToken.user_type == "MANAGER",
+                    DeviceToken.is_active == True,
+                )
+            ).all()
+            tokens = list(token_rows)
+            if tokens:
+                body = "재배정 요청 — 이전 담당 지사가 처리를 취소했습니다." if round_no > 1 \
+                    else f"[{request.category}] 새로운 수리 요청이 등록되었습니다."
+                send_push_notification(
+                    tokens=tokens,
+                    title="신규 수리 요청 접수" if round_no == 1 else "수리 요청 재배정",
+                    body=body,
+                    data={"request_id": str(request.id), "round_no": str(round_no)},
+                )
+        except Exception as e:
+            print(f"Broadcast push error: {e}")
+
+    # 수락 대기 타임아웃 만료 시각 세팅
+    request.dispatch_deadline = datetime.utcnow() + timedelta(minutes=DISPATCH_TIMEOUT_MINUTES)
+
+    # 배차 이벤트 기록 (BROADCAST는 주체 지사가 없으므로 branch_id=NULL)
+    session.add(DispatchEvent(
+        request_id=request.id,
+        branch_id=None,
+        event_type="BROADCAST",
+        round_no=round_no,
+    ))
+    return len(candidates)
+
+
+def _dispatch_audit(session: Session, request_id: UUID, action: str, payload: dict, changed_by: str):
+    """배차 동작에 대한 AuditLog 1행 기록."""
+    session.add(AuditLog(
+        table_name="service_requests",
+        target_id=request_id,
+        action=action,
+        payload=jsonable_encoder(payload),
+        changed_by=changed_by,
+    ))
+
 @router.post("/", response_model=RequestRead, status_code=status.HTTP_201_CREATED)
 def create_request(data: RequestCreate, session: Session = Depends(get_session)):
     # 1. 요청 생성 (notified_at = 지사 브로드캐스트 시각, SLA 시작점)
     new_request = ServiceRequest(**data.model_dump())
     new_request.notified_at = datetime.utcnow()
+    new_request.dispatch_status = "OPEN"  # 배차 시작 (plan_phase3.7 §3.1)
     session.add(new_request)
     session.commit()
     session.refresh(new_request)
-    
+
     # 2. 감사 로그 기록
     log = AuditLog(
         table_name="service_requests",
@@ -35,49 +150,39 @@ def create_request(data: RequestCreate, session: Session = Depends(get_session))
     )
     session.add(log)
     session.commit()
-    
-    # 3. 푸시 알림 발송 (해당 지역 매니저에게만)
-    try:
-        # 1. 요청을 올린 식당 정보 조회
-        restaurant = session.get(Restaurant, new_request.restaurant_id)
-        
-        # 2. 모든 매니저 토큰과 담당 지역 정보 조회
-        token_statement = select(DeviceToken.token, Branch.region_code).join(
-            Branch, Branch.id == DeviceToken.user_id
-        ).where(
-            DeviceToken.user_type == "MANAGER",
-            DeviceToken.is_active == True
+
+    # 3. 배차 — 후보 지사에게 푸시 + dispatch_deadline 세팅 + BROADCAST 이벤트
+    candidate_count = _broadcast_to_candidates(session, new_request, round_no=1)
+    if candidate_count == 0:
+        # 후보 0곳 — OPEN에 방치하지 않고 즉시 ESCALATED + 본사 알림 (plan_phase3.7 §3.1)
+        new_request.dispatch_status = "ESCALATED"
+        session.add(DispatchEvent(
+            request_id=new_request.id,
+            branch_id=None,
+            event_type="ESCALATE",
+            reason="NO_CANDIDATE",
+            round_no=1,
+        ))
+        _dispatch_audit(
+            session, new_request.id, "DISPATCH",
+            {"event": "ESCALATE", "reason": "NO_CANDIDATE", "dispatch_status": "ESCALATED"},
+            "system_user",
         )
-        results = session.exec(token_statement).all()
-        
-        token_list = []
-        for token, region_code in results:
-            # 지역이 정확히 일치하거나, 식당 주소에 지사 지역 코드가 포함된 경우 (예: "수원" in "경기 수원시...")
-            if region_code == restaurant.region or (region_code and region_code in restaurant.address):
-                token_list.append(token)
-        
-        print(f"--- Notification Debug ---")
-        print(f"Restaurant Region: {restaurant.region}")
-        print(f"Restaurant Address: {restaurant.address}")
-        print(f"Found {len(token_list)} manager(s) to notify.")
-        print(f"--------------------------")
+        session.add(new_request)
+        session.commit()
+        session.refresh(new_request)
+        _notify_hq(
+            session,
+            title="배차 불가 — 본사 확인 필요",
+            body=f"[{new_request.category}] 매칭되는 후보 지사가 없어 본사 배정이 필요합니다.",
+            request_id=new_request.id,
+        )
+    else:
+        session.add(new_request)
+        session.commit()
+        session.refresh(new_request)
 
-        if token_list:
-            send_push_notification(
-                tokens=token_list,
-                title="🔔 신규 수리 요청 접수",
-                body=f"[{data.category}] 새로운 수리 요청이 등록되었습니다.",
-                data={"request_id": str(new_request.id)}
-            )
-            print(f"Successfully triggered notification for {len(token_list)} tokens.")
-    except Exception as e:
-        print(f"Notification error: {e}")
-    
     return new_request
-
-from sqlalchemy.orm import selectinload
-
-from sqlalchemy import or_, String, func
 
 @router.get("/", response_model=List[RequestRead])
 def list_requests(
@@ -212,6 +317,26 @@ def update_request(
     if was_unassigned and db_request.assigned_branch_id is not None and db_request.accepted_at is None:
         db_request.accepted_at = datetime.utcnow()
 
+    # 본사 강제 배정 (plan_phase3.7 §3.7) — assigned_branch_id를 채우면 dispatch_status=HQ_ASSIGNED
+    # 본사 강제 배정은 어느 dispatch_status에서든 우선권을 가진다.
+    if (
+        "assigned_branch_id" in update_data
+        and db_request.assigned_branch_id is not None
+    ):
+        db_request.dispatch_status = "HQ_ASSIGNED"
+        session.add(DispatchEvent(
+            request_id=db_request.id,
+            branch_id=db_request.assigned_branch_id,
+            event_type="HQ_ASSIGN",
+            round_no=1,
+        ))
+        _dispatch_audit(
+            session, db_request.id, "DISPATCH",
+            {"event": "HQ_ASSIGN", "assigned_branch_id": str(db_request.assigned_branch_id),
+             "dispatch_status": "HQ_ASSIGNED"},
+            f"{user.get('role')}:{user.get('sub')}",
+        )
+
     # 상태 변경 시 관련 타임스탬프 업데이트 및 알람 발송
     if "status" in update_data:
         status = update_data["status"]
@@ -284,6 +409,283 @@ def update_request(
     session.commit()
     session.refresh(db_request)
     return db_request
+
+# ============================================================
+# 배차 엔드포인트 (plan_phase3.7)
+# ============================================================
+
+@router.post("/{request_id}/claim", response_model=RequestRead)
+def claim_request(
+    request_id: UUID,
+    session: Session = Depends(get_session),
+    user: dict = Depends(require_role("BRANCH")),
+):
+    """지사 수락 (선착순) — plan_phase3.7 §5.1 조건부 원자적 UPDATE.
+
+    수락 지사는 토큰의 sub(branch id)에서 가져온다. body로 branch_id를 받지
+    않는다(사칭 방지). 동시 수락 경합은 단일 UPDATE 문의 WHERE 절이 막는다.
+    """
+    branch_id = UUID(user.get("sub"))
+    now = datetime.utcnow()
+
+    db_request = session.get(ServiceRequest, request_id)
+    if not db_request:
+        raise HTTPException(status_code=404, detail="Request not found")
+
+    # 핵심: 조건부 원자적 UPDATE — "비어 있을 때만 채운다"를 단일 SQL 문으로.
+    # PostgreSQL이 행 잠금으로 동시 수락 중 한 쪽만 조건을 만족시킨다.
+    stmt = (
+        sa_update(ServiceRequest)
+        .where(
+            ServiceRequest.id == request_id,
+            ServiceRequest.assigned_branch_id.is_(None),
+            ServiceRequest.dispatch_status.in_(DISPATCH_OPEN_STATES),
+        )
+        .values(
+            assigned_branch_id=branch_id,
+            dispatch_status="CLAIMED",
+            # accepted_at 최초값 유지 (plan_phase3.5 / §5.3)
+            accepted_at=func.coalesce(ServiceRequest.accepted_at, now),
+            updated_at=now,
+        )
+    )
+    result = session.exec(stmt)
+
+    if result.rowcount == 1:
+        # 수락 성공
+        session.add(DispatchEvent(
+            request_id=request_id,
+            branch_id=branch_id,
+            event_type="CLAIM",
+            round_no=1,
+        ))
+        _dispatch_audit(
+            session, request_id, "DISPATCH",
+            {"event": "CLAIM", "branch_id": str(branch_id), "dispatch_status": "CLAIMED"},
+            f"BRANCH:{branch_id}",
+        )
+        session.commit()
+        session.refresh(db_request)
+        return db_request
+
+    # rowcount == 0 — 이미 다른 지사가 잡았거나 수락 대기 상태가 아님
+    session.add(DispatchEvent(
+        request_id=request_id,
+        branch_id=branch_id,
+        event_type="CLAIM_REJECTED",
+        round_no=1,
+    ))
+    _dispatch_audit(
+        session, request_id, "DISPATCH",
+        {"event": "CLAIM_REJECTED", "branch_id": str(branch_id)},
+        f"BRANCH:{branch_id}",
+    )
+    session.commit()
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail="이미 다른 지사가 수락했거나 수락할 수 없는 요청입니다.",
+    )
+
+
+@router.post("/{request_id}/release", response_model=RequestRead)
+def release_request(
+    request_id: UUID,
+    reason: str = Body(..., embed=True),
+    session: Session = Depends(get_session),
+    user: dict = Depends(require_role("BRANCH")),
+):
+    """담당 지사 취소 — plan_phase3.7 §3.4.
+
+    취소 지사는 토큰 sub에서 가져온다. 현재 담당 지사가 아니면 403.
+    reason은 버튼 선택형 문자열("일정 불가"/"지역 밖"/"인력 부족"/"기타").
+    cancel_count > 2(3번째 취소부터)면 재배포하지 않고 ESCALATED.
+    """
+    branch_id = UUID(user.get("sub"))
+
+    db_request = session.get(ServiceRequest, request_id)
+    if not db_request:
+        raise HTTPException(status_code=404, detail="Request not found")
+
+    # 현재 담당 지사만 취소 가능
+    if db_request.assigned_branch_id is None or db_request.assigned_branch_id != branch_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="현재 담당 지사만 취소할 수 있습니다.",
+        )
+
+    # 담당 해제 — assigned_branch_id NULL, cancel_count +1. accepted_at은 유지(§5.3)
+    db_request.assigned_branch_id = None
+    db_request.cancel_count = (db_request.cancel_count or 0) + 1
+    db_request.updated_at = datetime.utcnow()
+
+    # 취소 이벤트 기록
+    session.add(DispatchEvent(
+        request_id=request_id,
+        branch_id=branch_id,
+        event_type="RELEASE",
+        reason=reason,
+        round_no=db_request.cancel_count,
+    ))
+
+    if db_request.cancel_count > DISPATCH_REBROADCAST_LIMIT:
+        # 재배포 한계 초과(3번째 취소부터) — 재배포하지 않고 ESCALATED
+        db_request.dispatch_status = "ESCALATED"
+        session.add(DispatchEvent(
+            request_id=request_id,
+            branch_id=None,
+            event_type="ESCALATE",
+            reason="REBROADCAST_LIMIT",
+            round_no=db_request.cancel_count,
+        ))
+        _dispatch_audit(
+            session, request_id, "DISPATCH",
+            {"event": "RELEASE", "branch_id": str(branch_id), "reason": reason,
+             "cancel_count": db_request.cancel_count, "dispatch_status": "ESCALATED"},
+            f"BRANCH:{branch_id}",
+        )
+        session.add(db_request)
+        session.commit()
+        session.refresh(db_request)
+        _notify_hq(
+            session,
+            title="반복 취소 — 본사 확인 필요",
+            body=f"[{db_request.category}] 재배포 한계를 초과해 본사 배정이 필요합니다.",
+            request_id=request_id,
+        )
+        return db_request
+
+    # 재배포 — REASSIGNING 전이 후 후보 지사에 재푸시
+    db_request.dispatch_status = "REASSIGNING"
+    _broadcast_to_candidates(session, db_request, round_no=db_request.cancel_count + 1)
+    _dispatch_audit(
+        session, request_id, "DISPATCH",
+        {"event": "RELEASE", "branch_id": str(branch_id), "reason": reason,
+         "cancel_count": db_request.cancel_count, "dispatch_status": "REASSIGNING"},
+        f"BRANCH:{branch_id}",
+    )
+    session.add(db_request)
+    session.commit()
+    session.refresh(db_request)
+    return db_request
+
+
+@router.post("/dispatch/sweep", dependencies=[Depends(require_role("HQ_ADMIN"))])
+def sweep_dispatch_timeouts(session: Session = Depends(get_session)):
+    """타임아웃 점검 — plan_phase3.7 §3.5 방식 A.
+
+    수락 대기(OPEN/REASSIGNING) 중 dispatch_deadline이 지난 요청을
+    ESCALATED로 승격하고 본사에 알린다. 승격 건수를 반환한다.
+    """
+    now = datetime.utcnow()
+    expired = session.exec(
+        select(ServiceRequest).where(
+            ServiceRequest.dispatch_status.in_(("OPEN", "REASSIGNING")),
+            ServiceRequest.dispatch_deadline.is_not(None),
+            ServiceRequest.dispatch_deadline < now,
+        )
+    ).all()
+
+    for req in expired:
+        req.dispatch_status = "ESCALATED"
+        req.updated_at = now
+        session.add(req)
+        session.add(DispatchEvent(
+            request_id=req.id,
+            branch_id=None,
+            event_type="TIMEOUT",
+            reason="DEADLINE_EXCEEDED",
+            round_no=(req.cancel_count or 0) + 1,
+        ))
+        _dispatch_audit(
+            session, req.id, "DISPATCH",
+            {"event": "TIMEOUT", "dispatch_status": "ESCALATED"},
+            "system_sweep",
+        )
+
+    session.commit()
+
+    for req in expired:
+        _notify_hq(
+            session,
+            title="배차 타임아웃 — 본사 확인 필요",
+            body=f"[{req.category}] 수락 대기 시간이 초과되어 본사 배정이 필요합니다.",
+            request_id=req.id,
+        )
+
+    return {"escalated_count": len(expired)}
+
+
+@router.post("/{request_id}/rebroadcast", response_model=RequestRead)
+def rebroadcast_request(
+    request_id: UUID,
+    session: Session = Depends(get_session),
+    user: dict = Depends(require_role("HQ_ADMIN")),
+):
+    """본사 재배포 — plan_phase3.7 §3.5.
+
+    ESCALATED 건을 OPEN으로 되돌리고 후보 지사에 다시 푸시한다.
+    round_no는 직전 BROADCAST 라운드 +1.
+    """
+    db_request = session.get(ServiceRequest, request_id)
+    if not db_request:
+        raise HTTPException(status_code=404, detail="Request not found")
+
+    if db_request.dispatch_status != "ESCALATED":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="ESCALATED 상태의 요청만 재배포할 수 있습니다.",
+        )
+
+    # 직전 최대 round_no 조회 후 +1
+    last_round = session.exec(
+        select(func.max(DispatchEvent.round_no)).where(
+            DispatchEvent.request_id == request_id
+        )
+    ).one()
+    next_round = (last_round or 1) + 1
+
+    db_request.dispatch_status = "OPEN"
+    db_request.updated_at = datetime.utcnow()
+    candidate_count = _broadcast_to_candidates(session, db_request, round_no=next_round)
+
+    session.add(DispatchEvent(
+        request_id=request_id,
+        branch_id=None,
+        event_type="REBROADCAST",
+        round_no=next_round,
+    ))
+
+    if candidate_count == 0:
+        # 여전히 후보 0곳 — 다시 ESCALATED로 되돌리고 본사 알림
+        db_request.dispatch_status = "ESCALATED"
+        session.add(DispatchEvent(
+            request_id=request_id,
+            branch_id=None,
+            event_type="ESCALATE",
+            reason="NO_CANDIDATE",
+            round_no=next_round,
+        ))
+
+    _dispatch_audit(
+        session, request_id, "DISPATCH",
+        {"event": "REBROADCAST", "round_no": next_round,
+         "candidate_count": candidate_count, "dispatch_status": db_request.dispatch_status},
+        f"{user.get('role')}:{user.get('sub')}",
+    )
+    session.add(db_request)
+    session.commit()
+    session.refresh(db_request)
+
+    if candidate_count == 0:
+        _notify_hq(
+            session,
+            title="재배포 실패 — 후보 지사 없음",
+            body=f"[{db_request.category}] 재배포했으나 매칭 지사가 없습니다.",
+            request_id=request_id,
+        )
+
+    return db_request
+
 
 @router.post("/{request_id}/media")
 async def upload_media(

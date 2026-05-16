@@ -37,6 +37,10 @@ class RequestRead(BaseModel):
     assigned_at: Optional[datetime]
     accepted_at: Optional[datetime] = None
     completed_at: Optional[datetime]
+    # 배차 (plan_phase3.7)
+    dispatch_status: Optional[str] = None
+    cancel_count: int = 0
+    dispatch_deadline: Optional[datetime] = None
     # 프론트엔드 편의를 위한 정보 추가
     restaurant_name: Optional[str] = None
     restaurant_address: Optional[str] = None
