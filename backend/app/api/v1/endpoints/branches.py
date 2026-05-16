@@ -8,7 +8,13 @@ from datetime import datetime
 from app.db.session import get_session
 from app.models.domain import Branch, AuditLog, ServiceRequest, Settlement
 from app.schemas.domain import BranchCreate, BranchUpdate, BranchRead
-from app.api.deps import require_role
+from app.api.deps import (
+    require_role,
+    get_current_user,
+    assert_self_or_hq,
+    assert_no_hq_only_fields,
+    HQ_ONLY_BRANCH_FIELDS,
+)
 
 router = APIRouter()
 
@@ -197,11 +203,19 @@ def get_branch(branch_id: UUID, session: Session = Depends(get_session)):
     return branch
 
 @router.patch("/{branch_id}", response_model=BranchRead)
-def update_branch(branch_id: UUID, data: BranchUpdate, session: Session = Depends(get_session)):
+def update_branch(
+    branch_id: UUID,
+    data: BranchUpdate,
+    session: Session = Depends(get_session),
+    user: dict = Depends(get_current_user),
+):
     branch = session.get(Branch, branch_id)
     if not branch:
         raise HTTPException(status_code=404, detail="Branch not found")
-        
+
+    # 소유권 검증 (plan_phase3.2 §7) — 본인 지사만, HQ는 전체 허용
+    assert_self_or_hq(user, branch_id)
+
     # 이름 중복 체크 (자신은 제외)
     if data.name and data.name != branch.name:
         existing = session.exec(select(Branch).where(Branch.name == data.name, Branch.id != branch_id)).first()
@@ -219,6 +233,8 @@ def update_branch(branch_id: UUID, data: BranchUpdate, session: Session = Depend
 
     old_data = branch.model_dump()
     update_data = data.model_dump(exclude_unset=True)
+    # 본사 전용 필드(승인·수수료·등급)는 지사가 직접 못 바꾼다
+    assert_no_hq_only_fields(user, update_data, HQ_ONLY_BRANCH_FIELDS)
     for key, value in update_data.items():
         setattr(branch, key, value)
     
@@ -231,7 +247,7 @@ def update_branch(branch_id: UUID, data: BranchUpdate, session: Session = Depend
         target_id=branch.id,
         action="UPDATE",
         payload=jsonable_encoder({"before": old_data, "after": branch.model_dump()}),
-        changed_by="system_admin"
+        changed_by=f"{user.get('role')}:{user.get('sub')}"
     )
     session.add(log)
     

@@ -54,3 +54,15 @@ def init_db():
         except Exception as e:
             session.rollback()
             print(f"DB Normalize Error: {e}")
+
+        # 5. [임시 로그인 plan_phase3.2 §7] 식당·지사 PIN 인증 컬럼
+        try:
+            for tbl in ("branches", "restaurants"):
+                session.execute(text(f"ALTER TABLE {tbl} ADD COLUMN IF NOT EXISTS pin_hash VARCHAR;"))
+                session.execute(text(f"ALTER TABLE {tbl} ADD COLUMN IF NOT EXISTS failed_login_count INTEGER DEFAULT 0;"))
+                session.execute(text(f"ALTER TABLE {tbl} ADD COLUMN IF NOT EXISTS lockout_until TIMESTAMP;"))
+            session.commit()
+            print("Successfully added PIN auth columns to branches/restaurants")
+        except Exception as e:
+            session.rollback()
+            print(f"PIN column add error: {e}")

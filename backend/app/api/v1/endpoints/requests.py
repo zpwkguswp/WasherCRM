@@ -12,7 +12,7 @@ from app.models.domain import ServiceRequest, AuditLog, RequestMedia, DeviceToke
 from app.schemas.domain import RequestCreate, RequestUpdate, RequestRead
 from app.utils.notifications import send_push_notification
 from app.services.storage import storage
-from app.api.deps import require_role
+from app.api.deps import require_role, get_current_user, assert_request_access
 
 router = APIRouter()
 
@@ -179,11 +179,19 @@ def get_request(request_id: UUID, session: Session = Depends(get_session)):
     return db_request
 
 @router.patch("/{request_id}", response_model=RequestRead)
-def update_request(request_id: UUID, data: RequestUpdate, session: Session = Depends(get_session)):
+def update_request(
+    request_id: UUID,
+    data: RequestUpdate,
+    session: Session = Depends(get_session),
+    user: dict = Depends(get_current_user),
+):
     db_request = session.get(ServiceRequest, request_id)
     if not db_request:
         raise HTTPException(status_code=404, detail="Request not found")
-    
+
+    # 소유권 검증 (plan_phase3.2 §7) — 본인 요청만, HQ는 전체 허용
+    assert_request_access(user, db_request)
+
     # 변경 사항 추적을 위한 이전 데이터 저장
     old_data = db_request.model_dump()
     was_unassigned = db_request.assigned_branch_id is None
@@ -269,7 +277,7 @@ def update_request(request_id: UUID, data: RequestUpdate, session: Session = Dep
         target_id=db_request.id,
         action="UPDATE",
         payload=jsonable_encoder({"before": old_data, "after": db_request.model_dump()}),
-        changed_by="system_user"
+        changed_by=f"{user.get('role')}:{user.get('sub')}"
     )
     session.add(log)
     
