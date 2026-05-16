@@ -543,7 +543,14 @@
                 this.releaseTargetId = null;
             },
             
-            openReport(id) { this.currentRequestId = id; document.getElementById('modal-report').style.display = 'block'; },
+            openReport(id) {
+                this.currentRequestId = id;
+                // 새 수리 리포트 — 이전 작성 내용 초기화 (문제 원인·해결 방법·완료 사진)
+                document.getElementById('rep-cause').value = '';
+                document.getElementById('rep-solution').value = '';
+                document.getElementById('rep-file').value = '';
+                document.getElementById('modal-report').style.display = 'block';
+            },
             async submitReport() {
                 const cause = document.getElementById('rep-cause').value; const sol = document.getElementById('rep-solution').value; const file = document.getElementById('rep-file').files[0];
                 if(!cause || !sol || !file) return alert('모든 리포트 항목을 입력하고 사진을 첨부해 주세요.');
