@@ -154,6 +154,19 @@
             </div>
         </div>
 
+        <!-- 배차 취소 사유 선택 모달 (Phase 3.7) — 자유 입력 금지, 버튼 4개 택1 -->
+        <div id="modal-release" class="modal">
+            <div class="modal-content">
+                <h2 style="margin-top:0;">배차 취소 사유</h2>
+                <p style="font-size:0.9rem; color:var(--text-light); margin-bottom:18px;">취소 사유를 선택해 주세요.</p>
+                <button class="btn btn-secondary" style="margin-bottom:10px; padding:18px; font-size:1.05rem;" onclick="app.releaseRequest('일정 불가')">일정 불가</button>
+                <button class="btn btn-secondary" style="margin-bottom:10px; padding:18px; font-size:1.05rem;" onclick="app.releaseRequest('지역 밖')">지역 밖</button>
+                <button class="btn btn-secondary" style="margin-bottom:10px; padding:18px; font-size:1.05rem;" onclick="app.releaseRequest('인력 부족')">인력 부족</button>
+                <button class="btn btn-secondary" style="margin-bottom:10px; padding:18px; font-size:1.05rem;" onclick="app.releaseRequest('기타')">기타</button>
+                <button class="btn btn-secondary" style="margin-top:10px; background:none;" onclick="app.closeModal('release')">닫기</button>
+            </div>
+        </div>
+
         <div id="manager-nav" class="nav-bar" style="display:none;">
             <div class="nav-item active" onclick="app.switchTab('assigned')"><i class="fas fa-bell"></i><span>할당</span></div>
             <div class="nav-item" onclick="app.switchTab('progress')"><i class="fas fa-tools"></i><span>진행</span></div>
@@ -304,11 +317,16 @@
                 const region = parts.length >= 2 ? parts[1].replace(/시|군|구/, '') : "";
                 const data = await (await fetch(`${API_BASE}/requests/?assigned_branch_id=${this.branch.id}&unassigned_region=${encodeURIComponent(region)}`)).json();
                 
-                document.getElementById('assigned-list').innerHTML = data.filter(r => r.status === 'PENDING').reverse().map(r => `<div class="card new-alert"><div>#${r.id.split('-')[0].toUpperCase()}</div><div style="font-weight:800; font-size:1.1rem; color:var(--accent);">${r.restaurant_name}</div><div style="font-size:0.85rem; margin-top:5px;">${r.restaurant_address || r.address || '-'}</div><div style="font-weight:700; margin-top:5px; color:var(--danger);">${r.category}</div><button class="btn btn-primary" style="margin-top:15px; padding:10px;" onclick="app.acceptRequest('${r.id}')">수리 수락하기</button></div>`).join('') || '<p style="text-align:center; padding:40px; color:var(--text-light);">새로운 요청이 없습니다.</p>';
+                // 배차 가능 상태(수락 대기/재배정/본사확인) 또는 기존 PENDING 건을 할당 탭에 노출.
+                const claimable = ['OPEN','REASSIGNING','ESCALATED'];
+                document.getElementById('assigned-list').innerHTML = data.filter(r => {
+                    if(r.dispatch_status) return claimable.includes(r.dispatch_status) && r.assigned_branch_id !== this.branch.id;
+                    return r.status === 'PENDING';
+                }).reverse().map(r => `<div class="card new-alert"><div>#${r.id.split('-')[0].toUpperCase()}${this.dispatchBadge(r.dispatch_status)}</div><div style="font-weight:800; font-size:1.1rem; color:var(--accent);">${r.restaurant_name}</div><div style="font-size:0.85rem; margin-top:5px;">${r.restaurant_address || r.address || '-'}</div><div style="font-weight:700; margin-top:5px; color:var(--danger);">${r.category}</div><button class="btn btn-primary" style="margin-top:15px; padding:10px;" onclick="app.${r.dispatch_status ? `claimRequest('${r.id}')` : `acceptRequest('${r.id}')`}">수리 수락하기</button></div>`).join('') || '<p style="text-align:center; padding:40px; color:var(--text-light);">새로운 요청이 없습니다.</p>';
 
                 document.getElementById('progress-list').innerHTML = data.filter(r => ['IN_PROGRESS','PAYMENT_REQUESTED'].includes(r.status)).reverse().map(r => `
                     <div class="card" style="border-left-color:var(--warning);" onclick="this.classList.toggle('expanded')">
-                        <div style="display:flex; justify-content:space-between; align-items:center;"><b>${r.restaurant_name}</b><span class="badge" style="background:${r.status==='IN_PROGRESS'?'#f59e0b':'#10b981'}">${r.status==='IN_PROGRESS'?'수리중':'결제대기'}</span></div>
+                        <div style="display:flex; justify-content:space-between; align-items:center;"><b>${r.restaurant_name}${this.dispatchBadge(r.dispatch_status)}</b><span class="badge" style="background:${r.status==='IN_PROGRESS'?'#f59e0b':'#10b981'}">${r.status==='IN_PROGRESS'?'수리중':'결제대기'}</span></div>
                         <div class="detail-view">
                             <div style="margin-bottom:8px;"><i class="fas fa-map-marker-alt"></i> ${r.restaurant_address || r.address || '-'}</div>
                             <div style="margin-bottom:8px;"><i class="fas fa-phone-alt"></i> <a href="tel:${r.restaurant_phone}" onclick="event.stopPropagation();" style="color:var(--accent); font-weight:700;">${r.restaurant_phone || '-'}</a></div>
@@ -317,6 +335,7 @@
                                 ${(r.media || []).map(m => `<img src="${m.file_url}" style="height:60px; width:60px; object-fit:cover; border-radius:6px;" onclick="event.stopPropagation(); window.open(this.src)">`).join('')}
                             </div>
                             ${r.status==='IN_PROGRESS'?`<button class="btn btn-primary" style="margin-top:10px;" onclick="event.stopPropagation(); app.openReport('${r.id}')">리포트 작성</button>`:'<div style="margin-top:10px; font-weight:700; color:var(--accent);">결제 대기 중입니다.</div>'}
+                            ${(r.dispatch_status==='CLAIMED' && r.assigned_branch_id===this.branch.id)?`<button class="btn btn-secondary" style="margin-top:10px;" onclick="event.stopPropagation(); app.openReleaseModal('${r.id}')"><i class="fas fa-times-circle"></i> 배차 취소</button>`:''}
                         </div>
                     </div>`).join('') || '<p style="text-align:center; padding:40px;">진행 중인 작업 없음</p>';
 
@@ -332,6 +351,70 @@
             },
 
             async acceptRequest(id) { if(!confirm('수락하시겠습니까?')) return; const res = await fetch(`${API_BASE}/requests/${id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status:'IN_PROGRESS', assigned_branch_id:this.branch.id}) }); if(res.ok) { alert('수락 완료!'); this.switchTab('progress'); } },
+
+            // --- 배차 (Phase 3.7) ---
+            // 배차 상태 → 한국어 뱃지 (라벨, 배경색)
+            dispatchBadge(status) {
+                const map = {
+                    'OPEN':        ['수락 대기',  '#2563eb'],
+                    'REASSIGNING': ['재배정 대기', '#f59e0b'],
+                    'ESCALATED':   ['본사 확인 중', '#ef4444'],
+                    'CLAIMED':     ['수락됨',     '#10b981'],
+                    'HQ_ASSIGNED': ['본사 배정',  '#8b5cf6'],
+                    'CANCELLED':   ['배차 취소',  '#94a3b8']
+                };
+                const m = map[status];
+                if(!m) return '';
+                return `<span class="badge" style="background:${m[1]}; margin-left:6px;">${m[0]}</span>`;
+            },
+            // 지사가 배차 요청을 수락
+            async claimRequest(id) {
+                if(!confirm('이 수리 요청을 수락하시겠습니까?')) return;
+                try {
+                    const res = await fetch(`${API_BASE}/requests/${id}/claim`, { method: 'POST' });
+                    if(res.ok) {
+                        alert('수락되었습니다.');
+                        this.loadData();
+                    } else if(res.status === 409) {
+                        alert('이미 다른 지사가 수락했습니다.');
+                        this.loadData();
+                    } else {
+                        let msg = '수락에 실패했습니다.';
+                        try { msg = (await res.json()).detail || msg; } catch(e) {}
+                        alert(msg);
+                    }
+                } catch(e) {
+                    alert('수락 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+                }
+            },
+            // 담당 지사가 배차 취소 — 사유는 버튼 4개 중 택1 (자유 입력 금지)
+            openReleaseModal(id) {
+                this.releaseTargetId = id;
+                document.getElementById('modal-release').style.display = 'block';
+            },
+            async releaseRequest(reason) {
+                const id = this.releaseTargetId;
+                if(!id) return;
+                document.getElementById('modal-release').style.display = 'none';
+                try {
+                    const res = await fetch(`${API_BASE}/requests/${id}/release`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ reason })
+                    });
+                    if(res.ok) {
+                        alert('배차가 취소되었습니다.');
+                        this.loadData();
+                    } else {
+                        let msg = '취소에 실패했습니다.';
+                        try { msg = (await res.json()).detail || msg; } catch(e) {}
+                        alert(msg);
+                    }
+                } catch(e) {
+                    alert('취소 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+                }
+                this.releaseTargetId = null;
+            },
             
             openReport(id) { this.currentRequestId = id; document.getElementById('modal-report').style.display = 'block'; },
             async submitReport() {
