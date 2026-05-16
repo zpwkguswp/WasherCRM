@@ -4,6 +4,7 @@ from typing import List
 from app.db.session import get_session
 from app.models.domain import DeviceToken
 from app.schemas.domain import DeviceTokenCreate, DeviceTokenRead
+from app.api.deps import require_role
 
 router = APIRouter()
 
@@ -28,6 +29,6 @@ def register_device(data: DeviceTokenCreate, session: Session = Depends(get_sess
     session.refresh(db_token)
     return db_token
 
-@router.get("/tokens", response_model=List[DeviceTokenRead])
+@router.get("/tokens", response_model=List[DeviceTokenRead], dependencies=[Depends(require_role("HQ_ADMIN"))])
 def list_tokens(session: Session = Depends(get_session)):
     return session.exec(select(DeviceToken)).all()

@@ -8,10 +8,11 @@ from datetime import datetime
 from app.db.session import get_session
 from app.models.domain import Branch, AuditLog, ServiceRequest, Settlement
 from app.schemas.domain import BranchCreate, BranchUpdate, BranchRead
+from app.api.deps import require_role
 
 router = APIRouter()
 
-@router.get("/metrics/performance")
+@router.get("/metrics/performance", dependencies=[Depends(require_role("HQ_ADMIN"))])
 def get_branch_performance(session: Session = Depends(get_session)):
     """
     본사 관리자용: 각 지사별 실적(완료 건수, 매출액)을 집계합니다.
@@ -237,7 +238,7 @@ def update_branch(branch_id: UUID, data: BranchUpdate, session: Session = Depend
     session.commit()
     session.refresh(branch)
     return branch
-@router.delete("/{branch_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{branch_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_role("HQ_ADMIN"))])
 def delete_branch(branch_id: UUID, session: Session = Depends(get_session)):
     # 관리자용이므로 확인 코드 없이 진행 (UI에서 컨펌 창 띄움)
     branch = session.get(Branch, branch_id)

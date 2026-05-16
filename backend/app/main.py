@@ -63,10 +63,18 @@ async def restaurant_page():
 # 라우터 등록
 app.include_router(api_router, prefix="/api/v1")
 
-# CORS 설정
+# CORS 설정 — 허용 출처를 명시적으로 제한 (와일드카드 "*" 금지)
+# 운영 도메인·로컬 개발·Capacitor 앱 출처만 허용. 필요 시 목록에 추가.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://whiteon.kr",
+        "https://www.whiteon.kr",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "capacitor://localhost",
+        "http://localhost",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
