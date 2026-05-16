@@ -19,6 +19,11 @@ class Branch(SQLModel, table=True):
     tier: str = Field(default="BRONZE") # BRONZE, SILVER, GOLD, DIAMOND
     settlement_cycle: str = Field(default="WEEKLY") # WEEKLY, BIWEEKLY, MONTHLY, CUSTOM
 
+    # 임시 로그인 (plan_phase3.2 §7) — 전화번호 + 4자리 PIN
+    pin_hash: Optional[str] = Field(default=None)  # NULL이면 기본 PIN "0000"
+    failed_login_count: int = Field(default=0)
+    lockout_until: Optional[datetime] = None
+
     requests: List["ServiceRequest"] = Relationship(back_populates="branch")
     settlements: List["Settlement"] = Relationship(back_populates="branch")
 
@@ -35,7 +40,12 @@ class Restaurant(SQLModel, table=True):
     is_approved: bool = Field(default=False, index=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
-    
+
+    # 임시 로그인 (plan_phase3.2 §7) — 전화번호 + 4자리 PIN
+    pin_hash: Optional[str] = Field(default=None)  # NULL이면 기본 PIN "0000"
+    failed_login_count: int = Field(default=0)
+    lockout_until: Optional[datetime] = None
+
     requests: List["ServiceRequest"] = Relationship(back_populates="restaurant")
 
 class ServiceRequest(SQLModel, table=True):
@@ -49,7 +59,9 @@ class ServiceRequest(SQLModel, table=True):
     metadata_json: Optional[dict] = Field(default_factory=dict, sa_column=Column("metadata", JSON))
     
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    notified_at: Optional[datetime] = None   # 지사 브로드캐스트 시각 (SLA 시작점)
     assigned_at: Optional[datetime] = None
+    accepted_at: Optional[datetime] = None   # 지사 최초 수락 시각 (SLA 종료점)
     completed_at: Optional[datetime] = None
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     

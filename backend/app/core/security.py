@@ -8,6 +8,7 @@ import base64
 import hashlib
 import hmac
 import json
+import secrets
 import time
 
 from app.core.config import settings
@@ -59,3 +60,31 @@ def decode_access_token(token: str) -> dict | None:
     if int(payload.get("exp", 0)) < int(time.time()):
         return None
     return payload
+
+
+# --- PIN 해시 (plan_phase3.2 §7 — 식당·지사 임시 로그인) ---
+# 4자리 PIN을 평문 저장하지 않고 pbkdf2-sha256으로 해시한다.
+# 형식: "pbkdf2_sha256$<iterations>$<salt_hex>$<hash_hex>"
+
+_PIN_ITERATIONS = 100_000
+
+
+def hash_pin(pin: str) -> str:
+    """PIN을 임의 salt와 함께 해시한다."""
+    salt = secrets.token_hex(16)
+    dk = hashlib.pbkdf2_hmac("sha256", pin.encode(), bytes.fromhex(salt), _PIN_ITERATIONS)
+    return f"pbkdf2_sha256${_PIN_ITERATIONS}${salt}${dk.hex()}"
+
+
+def verify_pin(pin: str, stored: str | None) -> bool:
+    """입력 PIN을 검증한다. stored가 None이면 기본 PIN '0000'과 비교한다."""
+    if stored is None:
+        return hmac.compare_digest(pin, "0000")
+    try:
+        algo, iter_s, salt, hash_hex = stored.split("$")
+        if algo != "pbkdf2_sha256":
+            return False
+        dk = hashlib.pbkdf2_hmac("sha256", pin.encode(), bytes.fromhex(salt), int(iter_s))
+        return hmac.compare_digest(dk.hex(), hash_hex)
+    except (ValueError, TypeError):
+        return False

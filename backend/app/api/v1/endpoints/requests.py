@@ -12,14 +12,15 @@ from app.models.domain import ServiceRequest, AuditLog, RequestMedia, DeviceToke
 from app.schemas.domain import RequestCreate, RequestUpdate, RequestRead
 from app.utils.notifications import send_push_notification
 from app.services.storage import storage
-from app.api.deps import require_role
+from app.api.deps import require_role, get_current_user, assert_request_access
 
 router = APIRouter()
 
 @router.post("/", response_model=RequestRead, status_code=status.HTTP_201_CREATED)
 def create_request(data: RequestCreate, session: Session = Depends(get_session)):
-    # 1. 요청 생성
+    # 1. 요청 생성 (notified_at = 지사 브로드캐스트 시각, SLA 시작점)
     new_request = ServiceRequest(**data.model_dump())
+    new_request.notified_at = datetime.utcnow()
     session.add(new_request)
     session.commit()
     session.refresh(new_request)
@@ -142,6 +143,34 @@ def list_requests(
     results = session.exec(statement).all()
     return [RequestRead.from_db(r) for r in results]
 
+@router.get("/sla/summary", dependencies=[Depends(require_role("HQ_ADMIN"))])
+def sla_summary(threshold_minutes: int = 60, session: Session = Depends(get_session)):
+    """본사용: 지사 수락 SLA 요약 — notified_at→accepted_at 경과시간 통계."""
+    accepted = session.exec(
+        select(ServiceRequest).where(
+            ServiceRequest.notified_at.is_not(None),
+            ServiceRequest.accepted_at.is_not(None),
+        )
+    ).all()
+    elapsed = [
+        (r.accepted_at - r.notified_at).total_seconds() / 60.0 for r in accepted
+    ]
+    count = len(elapsed)
+    pending = session.exec(
+        select(func.count(ServiceRequest.id)).where(
+            ServiceRequest.notified_at.is_not(None),
+            ServiceRequest.accepted_at.is_(None),
+        )
+    ).one()
+    return {
+        "accepted_count": count,
+        "avg_accept_minutes": round(sum(elapsed) / count, 1) if count else 0.0,
+        "max_accept_minutes": round(max(elapsed), 1) if count else 0.0,
+        "threshold_minutes": threshold_minutes,
+        "over_threshold_count": sum(1 for e in elapsed if e > threshold_minutes),
+        "pending_unaccepted_count": pending,
+    }
+
 @router.get("/{request_id}", response_model=RequestRead)
 def get_request(request_id: UUID, session: Session = Depends(get_session)):
     db_request = session.get(ServiceRequest, request_id)
@@ -150,14 +179,23 @@ def get_request(request_id: UUID, session: Session = Depends(get_session)):
     return db_request
 
 @router.patch("/{request_id}", response_model=RequestRead)
-def update_request(request_id: UUID, data: RequestUpdate, session: Session = Depends(get_session)):
+def update_request(
+    request_id: UUID,
+    data: RequestUpdate,
+    session: Session = Depends(get_session),
+    user: dict = Depends(get_current_user),
+):
     db_request = session.get(ServiceRequest, request_id)
     if not db_request:
         raise HTTPException(status_code=404, detail="Request not found")
-    
+
+    # 소유권 검증 (plan_phase3.2 §7) — 본인 요청만, HQ는 전체 허용
+    assert_request_access(user, db_request)
+
     # 변경 사항 추적을 위한 이전 데이터 저장
     old_data = db_request.model_dump()
-    
+    was_unassigned = db_request.assigned_branch_id is None
+
     update_data = data.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         if key == "metadata":
@@ -170,6 +208,10 @@ def update_request(request_id: UUID, data: RequestUpdate, session: Session = Dep
         else:
             setattr(db_request, key, value)
     
+    # 지사가 처음 배정(수락)된 시각 기록 — SLA 종료점
+    if was_unassigned and db_request.assigned_branch_id is not None and db_request.accepted_at is None:
+        db_request.accepted_at = datetime.utcnow()
+
     # 상태 변경 시 관련 타임스탬프 업데이트 및 알람 발송
     if "status" in update_data:
         status = update_data["status"]
@@ -235,7 +277,7 @@ def update_request(request_id: UUID, data: RequestUpdate, session: Session = Dep
         target_id=db_request.id,
         action="UPDATE",
         payload=jsonable_encoder({"before": old_data, "after": db_request.model_dump()}),
-        changed_by="system_user"
+        changed_by=f"{user.get('role')}:{user.get('sub')}"
     )
     session.add(log)
     

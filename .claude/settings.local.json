@@ -83,7 +83,10 @@
       "Bash(py *)",
       "Bash(grep -iE \"\\\\.env|serviceAccountKey|\\\\.pem|\\\\.db$|AWS_accesskey|google-services\")",
       "Bash(gh repo *)",
-      "Bash(curl *)"
+      "Bash(curl *)",
+      "Bash(docker --version)",
+      "Bash(docker exec *)",
+      "PowerShell(Get-NetTCPConnection *)"
     ]
   }
 }

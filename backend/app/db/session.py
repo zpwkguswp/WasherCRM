@@ -29,7 +29,15 @@ def init_db():
             print("Successfully added address to branches")
         except Exception: session.rollback()
 
-        # 3. [매칭 자동 수선] 식당 지역 정보 표준화 및 전체 승인 처리
+        # 3. service_requests SLA 측정 컬럼 (plan_phase3.5 H5)
+        try:
+            session.execute(text("ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS notified_at TIMESTAMP;"))
+            session.execute(text("ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS accepted_at TIMESTAMP;"))
+            session.commit()
+            print("Successfully added SLA columns to service_requests")
+        except Exception: session.rollback()
+
+        # 4. [매칭 자동 수선] 식당 지역 정보 표준화 및 전체 승인 처리
         try:
             # 주소의 앞 두 단어(예: 경기 의정부시)를 region 필드에 삽입
             session.execute(text("""
@@ -46,3 +54,15 @@ def init_db():
         except Exception as e:
             session.rollback()
             print(f"DB Normalize Error: {e}")
+
+        # 5. [임시 로그인 plan_phase3.2 §7] 식당·지사 PIN 인증 컬럼
+        try:
+            for tbl in ("branches", "restaurants"):
+                session.execute(text(f"ALTER TABLE {tbl} ADD COLUMN IF NOT EXISTS pin_hash VARCHAR;"))
+                session.execute(text(f"ALTER TABLE {tbl} ADD COLUMN IF NOT EXISTS failed_login_count INTEGER DEFAULT 0;"))
+                session.execute(text(f"ALTER TABLE {tbl} ADD COLUMN IF NOT EXISTS lockout_until TIMESTAMP;"))
+            session.commit()
+            print("Successfully added PIN auth columns to branches/restaurants")
+        except Exception as e:
+            session.rollback()
+            print(f"PIN column add error: {e}")

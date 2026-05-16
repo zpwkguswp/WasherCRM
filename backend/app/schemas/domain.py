@@ -33,7 +33,9 @@ class RequestRead(BaseModel):
     status: str
     metadata: Optional[dict] = Field(None, validation_alias="metadata_json", serialization_alias="metadata")
     created_at: datetime
+    notified_at: Optional[datetime] = None
     assigned_at: Optional[datetime]
+    accepted_at: Optional[datetime] = None
     completed_at: Optional[datetime]
     # 프론트엔드 편의를 위한 정보 추가
     restaurant_name: Optional[str] = None
