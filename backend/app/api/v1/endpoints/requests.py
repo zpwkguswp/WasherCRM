@@ -317,23 +317,28 @@ def update_request(
     if was_unassigned and db_request.assigned_branch_id is not None and db_request.accepted_at is None:
         db_request.accepted_at = datetime.utcnow()
 
-    # 본사 강제 배정 (plan_phase3.7 §3.7) — assigned_branch_id를 채우면 dispatch_status=HQ_ASSIGNED
-    # 본사 강제 배정은 어느 dispatch_status에서든 우선권을 가진다.
+    # 배정 — assigned_branch_id가 처음 None→값으로 채워질 때만 dispatch_status 갱신.
+    # 본사가 배정하면 HQ_ASSIGNED, 지사가 스스로 배정(수락)하면 CLAIMED.
+    # (was_unassigned 조건으로, 이미 배정된 건의 단순 status 수정 PATCH에서
+    #  dispatch_status가 잘못 덮어써지는 것을 막는다.)
     if (
-        "assigned_branch_id" in update_data
+        was_unassigned
+        and "assigned_branch_id" in update_data
         and db_request.assigned_branch_id is not None
     ):
-        db_request.dispatch_status = "HQ_ASSIGNED"
+        is_hq = user.get("role") == "HQ_ADMIN"
+        db_request.dispatch_status = "HQ_ASSIGNED" if is_hq else "CLAIMED"
+        event_type = "HQ_ASSIGN" if is_hq else "CLAIM"
         session.add(DispatchEvent(
             request_id=db_request.id,
             branch_id=db_request.assigned_branch_id,
-            event_type="HQ_ASSIGN",
+            event_type=event_type,
             round_no=1,
         ))
         _dispatch_audit(
             session, db_request.id, "DISPATCH",
-            {"event": "HQ_ASSIGN", "assigned_branch_id": str(db_request.assigned_branch_id),
-             "dispatch_status": "HQ_ASSIGNED"},
+            {"event": event_type, "assigned_branch_id": str(db_request.assigned_branch_id),
+             "dispatch_status": db_request.dispatch_status},
             f"{user.get('role')}:{user.get('sub')}",
         )
 

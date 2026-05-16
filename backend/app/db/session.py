@@ -37,20 +37,17 @@ def init_db():
             print("Successfully added SLA columns to service_requests")
         except Exception: session.rollback()
 
-        # 4. [매칭 자동 수선] 식당 지역 정보 표준화 및 전체 승인 처리
+        # 4. [매칭 자동 수선] 식당 지역 정보 표준화
+        #    (전체 자동 승인은 제거 — 가입 시 본사 승인 필수, 2026-05-16 대표 지시)
         try:
             # 주소의 앞 두 단어(예: 경기 의정부시)를 region 필드에 삽입
             session.execute(text("""
-                UPDATE restaurants 
+                UPDATE restaurants
                 SET region = split_part(address, ' ', 1) || ' ' || split_part(address, ' ', 2)
                 WHERE region IS NULL OR region = '' OR region = 'None';
             """))
-            # 지사/식당 전체 승인 처리 (매칭 활성화)
-            session.execute(text("UPDATE restaurants SET is_approved = true WHERE is_approved = false;"))
-            session.execute(text("UPDATE branches SET is_approved = true WHERE is_approved = false;"))
-
             session.commit()
-            print("Successfully normalized restaurant regions and approvals")
+            print("Successfully normalized restaurant regions")
         except Exception as e:
             session.rollback()
             print(f"DB Normalize Error: {e}")

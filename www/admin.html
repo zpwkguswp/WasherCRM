@@ -313,7 +313,7 @@
                         <td>${r.region || '-'}</td>
                         <td>${r.phone}</td>
                         <td style="font-size:0.75rem;">${r.address}</td>
-                        <td>${!r.is_approved ? `<button class="btn btn-primary btn-sm" onclick="app.approve('restaurants','${r.id}')">승인</button>` : `<button class="btn btn-sm btn-secondary" onclick="app.openEditRestaurant('${r.id}')">수정</button>`}</td>
+                        <td>${!r.is_approved ? `<button class="btn btn-primary btn-sm" onclick="app.approve('restaurants','${r.id}')">승인</button> <button class="btn btn-danger btn-sm" onclick="app.reject('restaurants','${r.id}')">거절</button>` : `<button class="btn btn-sm btn-secondary" onclick="app.openEditRestaurant('${r.id}')">수정</button>`}</td>
                     </tr>`).join('');
             },
 
@@ -342,9 +342,11 @@
                 document.getElementById('stat-completed').innerText = stats.COMPLETED;
                 document.getElementById('stat-cancel').innerText = stats.CANCELED;
 
-                const statusMap = { 'PENDING':['접수대기','pending'], 'IN_PROGRESS':['수리중','progress'], 'SUSPENDED':['중단됨','suspended'], 'PAYMENT_REQUESTED':['결제대기','wait'], 'COMPLETED':['완료','completed'], 'CANCELED':['취소됨','cancel'] };
+                const statusMap = { 'PENDING':['접수대기','pending'], 'ASSIGNED':['지사 배정완료','progress'], 'IN_PROGRESS':['수리중','progress'], 'SUSPENDED':['중단됨','suspended'], 'PAYMENT_REQUESTED':['결제대기','wait'], 'COMPLETED':['완료','completed'], 'CANCELED':['취소됨','cancel'] };
                 document.getElementById('request-all-list').innerHTML = data.reverse().map(r=> {
-                    const s = statusMap[r.status] || [r.status, ''];
+                    // 접수됐지만 지사 수락·배정된 건은 '지사 배정완료'로 표시
+                    const effStatus = (r.status === 'PENDING' && ['CLAIMED','HQ_ASSIGNED'].includes(r.dispatch_status)) ? 'ASSIGNED' : r.status;
+                    const s = statusMap[effStatus] || [r.status, ''];
                     let m = r.metadata;
                     if(typeof m === 'string') try { m = JSON.parse(m); } catch(e) { m = {}; }
                     r.metadata = m || {};
@@ -381,7 +383,7 @@
                             <option value="DIAMOND" ${b.tier==='DIAMOND'?'selected':''}>DIAMOND (5%)</option>
                         </select>
                     </div>
-                    <div class="edit-input-group"><label>지역 코드</label><input type="text" id="edit-b-region" value="${b.region_code || ''}"></div>
+                    <div class="edit-input-group"><label>담당 지역 (도시명)</label><input type="text" id="edit-b-region" value="${b.region_code || ''}" placeholder="예: 수원시"></div>
                     <div class="edit-input-group"><label>매니저 연락처</label><input type="text" id="edit-b-phone" value="${b.manager_phone}"></div>
                     <div class="edit-input-group"><label>상세 주소</label><input type="text" id="edit-b-addr" value="${b.address}"></div>
                     <div class="edit-input-group"><label>수수료율 (%)</label><input type="number" id="edit-b-rate" value="${b.commission_rate}"></div>

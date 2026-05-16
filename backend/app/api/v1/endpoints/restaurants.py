@@ -49,6 +49,8 @@ def create_restaurant(data: RestaurantCreate, session: Session = Depends(get_ses
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="이미 등록된 상세 주소입니다. (중복 가입 방지)")
 
     new_restaurant = Restaurant(**data.model_dump())
+    # 식당은 가입 즉시 자동 승인 — 본사 승인 절차 없음 (2026-05-16 대표 지시)
+    new_restaurant.is_approved = True
     session.add(new_restaurant)
     session.commit()
     session.refresh(new_restaurant)
