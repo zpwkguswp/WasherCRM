@@ -217,6 +217,17 @@
 
             <div id="page-settlements" class="page">
                 <h1>💰 정산 관리</h1>
+                <div class="card" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                    <b style="font-size:0.9rem;"><i class="fas fa-file-excel" style="color:#10b981;"></i> 월별 회계 리포트</b>
+                    <select id="report-year" style="padding:8px; border-radius:8px; border:1px solid var(--border);">
+                        <option value="2025">2025년</option><option value="2026">2026년</option><option value="2027">2027년</option>
+                    </select>
+                    <select id="report-month" style="padding:8px; border-radius:8px; border:1px solid var(--border);">
+                        <option value="1">1월</option><option value="2">2월</option><option value="3">3월</option><option value="4">4월</option><option value="5">5월</option><option value="6">6월</option><option value="7">7월</option><option value="8">8월</option><option value="9">9월</option><option value="10">10월</option><option value="11">11월</option><option value="12">12월</option>
+                    </select>
+                    <button class="btn btn-primary btn-sm" onclick="app.downloadMonthlyReport()"><i class="fas fa-download"></i> 엑셀 다운로드</button>
+                    <span style="font-size:0.72rem; color:var(--text-light);">선택한 달에 마감된 정산서를 모아 회계용 엑셀(CSV)로 받습니다.</span>
+                </div>
                 <div class="legend-box">
                     <div class="filter-group">
                         <div class="filter-item"><label>정산 기간</label><input type="date" id="set-period-start" style="width:140px;"> <span>~</span> <input type="date" id="set-period-end" style="width:140px;"></div>
@@ -612,6 +623,9 @@
             fillLastWeek() { this._weekDates(-7); },
             async loadSettlements() {
                 if(!document.getElementById('set-period-start').value) this._weekDates(0);
+                // 월별 리포트 연·월 기본값 — 이번 달
+                const ry = document.getElementById('report-year'), rm = document.getElementById('report-month');
+                if(ry && !ry.dataset.init) { const now = new Date(); ry.value = String(now.getFullYear()); rm.value = String(now.getMonth()+1); ry.dataset.init = '1'; }
                 const res = await fetch(`${API_BASE}/settlements/`);
                 if(!res.ok) return;
                 const data = await res.json();
@@ -679,6 +693,27 @@
                     ${s.notes ? `<div style="margin-top:10px; font-size:0.72rem; color:var(--text-light);">메모: ${s.notes}</div>` : ''}
                 `;
                 document.getElementById('common-modal').classList.add('active');
+            },
+            async downloadMonthlyReport() {
+                const year = document.getElementById('report-year').value;
+                const month = document.getElementById('report-month').value;
+                if(!year || !month) { alert('연도와 월을 선택해 주세요.'); return; }
+                const res = await fetch(`${API_BASE}/settlements/report/monthly?year=${year}&month=${month}`);
+                if(!res.ok) {
+                    let msg = '리포트 생성에 실패했습니다.';
+                    try { msg = (await res.json()).detail || msg; } catch(e) {}
+                    alert(msg);
+                    return;
+                }
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `WhiteOn_정산리포트_${year}-${String(month).padStart(2,'0')}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
             },
             async transitionSettlement(id, newStatus) {
                 if(!confirm(`정산서를 '${this.settlementLabel(newStatus)}' 상태로 변경하시겠습니까?`)) return;
