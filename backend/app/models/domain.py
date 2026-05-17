@@ -64,7 +64,15 @@ class ServiceRequest(SQLModel, table=True):
     accepted_at: Optional[datetime] = None   # 지사 최초 수락 시각 (SLA 종료점)
     completed_at: Optional[datetime] = None
     updated_at: datetime = Field(default_factory=datetime.utcnow)
-    
+
+    # 배차 (plan_phase3.7) — 기존 status 축과 직교하는 배정 생애주기
+    dispatch_status: Optional[str] = Field(default=None, index=True)  # OPEN|CLAIMED|REASSIGNING|ESCALATED|HQ_ASSIGNED|CANCELLED
+    cancel_count: int = Field(default=0)              # 담당 지사 취소 누적 횟수
+    dispatch_deadline: Optional[datetime] = None      # 수락 대기 타임아웃 만료 시각
+
+    # 방문 일정 (plan_phase3.6) — 지사가 수락 시 지정하는 방문 예정 일시
+    scheduled_visit_at: Optional[datetime] = None
+
     branch: Optional[Branch] = Relationship(back_populates="requests")
     restaurant: Restaurant = Relationship(back_populates="requests")
     media: List["RequestMedia"] = Relationship(back_populates="request")
@@ -80,8 +88,24 @@ class RequestMedia(SQLModel, table=True):
     file_url: str
     thumbnail_url: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
-    
+
     request: ServiceRequest = Relationship(back_populates="media")
+
+class DispatchEvent(SQLModel, table=True):
+    """배차 이벤트 이력 (plan_phase3.7) — 수락·취소·재배포·타임아웃 1건당 1행.
+
+    AuditLog와 별개로, 배차 전용 집계(재배포율·지사별 취소 건수)를 위한 테이블.
+    append-only이며 relationship은 두지 않는다(AuditLog와 동일 정신).
+    """
+    __tablename__ = "dispatch_events"
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    request_id: UUID = Field(foreign_key="service_requests.id", index=True)
+    branch_id: Optional[UUID] = Field(default=None, foreign_key="branches.id")
+    # BROADCAST|CLAIM|CLAIM_REJECTED|RELEASE|TIMEOUT|ESCALATE|HQ_ASSIGN|REBROADCAST
+    event_type: str = Field(index=True)
+    reason: Optional[str] = None              # 취소 사유 (버튼 선택형)
+    round_no: int = Field(default=1)          # 몇 번째 배포 라운드인지
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
 
 class Payment(SQLModel, table=True):
     __tablename__ = "payments"

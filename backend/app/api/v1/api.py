@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import branches, restaurants, requests, payments, notifications, audit, auth
+from app.api.v1.endpoints import branches, restaurants, requests, payments, notifications, audit, auth, settlements
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["Auth"])
@@ -9,3 +9,4 @@ api_router.include_router(requests.router, prefix="/requests", tags=["Service Re
 api_router.include_router(payments.router, prefix="/payments", tags=["Payments"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
 api_router.include_router(audit.router, prefix="/audit-logs", tags=["Audit Logs"])
+api_router.include_router(settlements.router, prefix="/settlements", tags=["Settlements"])

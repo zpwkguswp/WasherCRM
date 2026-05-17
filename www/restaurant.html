@@ -47,13 +47,14 @@
 </head>
 <body>
     <div class="mobile-container">
-        <div class="header"><img src="/static/logo.png" alt="WhiteOn"></div>
+        <div class="header" style="display:flex; align-items:center; justify-content:center; position:relative;"><img src="/static/logo.png" alt="WhiteOn"><i id="header-profile-btn" class="fas fa-user-circle" onclick="app.openProfile()" style="display:none; position:absolute; right:20px; font-size:1.7rem; color:var(--primary); cursor:pointer;"></i></div>
         <div class="content">
             <div id="page-login" class="page active">
                 <div style="text-align:center; margin:40px 0;"><i class="fas fa-store" style="font-size:3rem; color:var(--primary);"></i><h2>사장님 로그인</h2></div>
                 <div class="card" style="border:none; cursor:default;">
-                    <div class="input-group"><label>전화번호</label><input type="text" id="login-phone" placeholder="'-' 제외 입력"><button class="btn-inline" onclick="app.sendOTP('login')">인증번호</button></div>
-                    <div id="otp-group-login" class="input-group" style="display:none;"><label>인증번호</label><input type="text" id="login-otp" placeholder="숫자 6자리 입력"></div>
+                    <div class="input-group"><label style="font-size:0.95rem;">전화번호</label><input type="tel" id="login-phone" placeholder="'-' 제외 입력" style="font-size:1.1rem; padding:15px;"></div>
+                    <div class="input-group"><label style="font-size:0.95rem;">비밀번호 (숫자 4자리)</label><input type="password" id="login-pin" inputmode="numeric" maxlength="4" placeholder="● ● ● ●" style="font-size:1.4rem; padding:15px; text-align:center; letter-spacing:0.4rem;" onkeydown="if(event.key==='Enter') app.login()"></div>
+                    <div id="login-error" style="display:none; color:var(--danger); font-size:0.85rem; margin-bottom:12px; font-weight:700; text-align:center;"></div>
                     <button type="button" class="btn btn-primary" onclick="app.login()" style="margin-top:10px;">로그인</button>
                     <button type="button" class="btn" style="background:none; color:var(--text-light); margin-top:10px; font-size:0.85rem;" onclick="app.showPage('signup')">아직 회원이 아니신가요? 가입 신청</button>
                 </div>
@@ -62,7 +63,6 @@
                 <h2>🍕 식당 가입 신청</h2>
                 <div class="card" style="border:none; cursor:default;">
                     <div class="input-group"><label>식당 이름</label><input type="text" id="reg-name" placeholder="예: 화이트온 키친"></div>
-                    <div class="input-group"><label>지역 코드 (도시명)</label><input type="text" id="reg-region" placeholder="예: SUWON"></div>
                     <div class="input-group"><label>식당 주소</label><input type="text" id="reg-address" readonly onclick="app.searchAddress()"><button type="button" class="btn-inline" onclick="app.searchAddress()">주소 찾기</button></div>
                     <div class="input-group"><label>상세 주소</label><input type="text" id="reg-address-detail" placeholder="상세 주소 입력"></div>
                     <div class="input-group"><label>연락처 (핸드폰)</label><input type="text" id="reg-phone" placeholder="'-' 제외 입력"><button type="button" class="btn-inline" onclick="app.sendOTP('signup')">인증번호</button></div>
@@ -74,8 +74,8 @@
             <div id="page-reg-success" class="page">
                 <div style="text-align:center; margin-top:60px;">
                     <i class="fas fa-check-circle" style="font-size:4rem; color:var(--success);"></i>
-                    <h2 style="margin-top:20px;">가입 신청 완료!</h2>
-                    <p style="color:var(--text-light); line-height:1.6;">식당 등록 신청이 정상적으로 접수되었습니다.<br>본사 승인 후 서비스를 이용하실 수 있습니다.</p>
+                    <h2 style="margin-top:20px;">가입 완료!</h2>
+                    <p style="color:var(--text-light); line-height:1.6;">식당 등록이 완료되었습니다.<br>바로 로그인하여 서비스를 이용하실 수 있습니다.</p>
                     <button class="btn btn-primary" onclick="app.showPage('login')" style="margin-top:30px;">로그인하러 가기</button>
                 </div>
             </div>
@@ -88,46 +88,154 @@
                 <h2>🛠️ 수리 신청</h2>
                 <div class="card" style="border:none; cursor:default;">
                     <div class="input-group"><label>고장 카테고리</label><select id="req-category"><option>수압 저하</option><option>배수 불량</option><option>전원 안켜짐</option><option>이상 소음</option><option>기타</option></select></div>
-                    <div class="input-group"><label>상세 내용 (모델명 등)</label><textarea id="req-description" rows="3" placeholder="문제 상황을 자세히 적어주세요."></textarea></div>
-                    <div class="input-group"><label>현장 사진</label><input type="file" id="req-file" accept="image/*"></div>
+                    <div class="input-group"><label>상세 내용 (문제내용 기재) <span style="color:var(--danger);">* 필수</span></label><textarea id="req-description" rows="3" placeholder="문제 상황을 자세히 적어주세요."></textarea></div>
+                    <div class="input-group"><label>현장 사진 <span style="color:var(--danger);">* 필수</span></label><input type="file" id="req-file" accept="image/*"></div>
                     <button class="btn btn-primary" onclick="app.submitRequest()">수리 요청하기</button>
                     <button class="btn btn-secondary" onclick="app.showPage('home')">취소</button>
                 </div>
             </div>
             <div id="page-payment-success" class="page">
-                <div style="text-align:center; margin-top:60px;">
+                <div style="text-align:center; margin-top:40px;">
                     <i class="fas fa-check-double" style="font-size:4rem; color:var(--success);"></i>
                     <h2 style="margin-top:20px;">결제 및 수리 완료!</h2>
                     <p style="color:var(--text-light); line-height:1.6;">결제가 성공적으로 처리되었습니다.<br>화이트온 서비스를 이용해 주셔서 감사합니다.</p>
-                    <button class="btn btn-primary" onclick="app.showPage('home'); app.loadRequests();" style="margin-top:30px;">수리 내역 확인하기</button>
+                </div>
+                <div class="card" style="border:none; text-align:center; margin-top:20px;">
+                    <div style="font-weight:800; margin-bottom:6px;">수리 서비스는 만족스러우셨나요?</div>
+                    <div style="font-size:0.8rem; color:var(--text-light); margin-bottom:12px;">별점을 선택해 평가해 주세요.</div>
+                    <div id="survey-stars" style="font-size:2.3rem; color:#fbbf24; margin-bottom:14px;">
+                        <i class="far fa-star" data-v="1" onclick="app.setRating(1)" style="cursor:pointer; margin:0 3px;"></i>
+                        <i class="far fa-star" data-v="2" onclick="app.setRating(2)" style="cursor:pointer; margin:0 3px;"></i>
+                        <i class="far fa-star" data-v="3" onclick="app.setRating(3)" style="cursor:pointer; margin:0 3px;"></i>
+                        <i class="far fa-star" data-v="4" onclick="app.setRating(4)" style="cursor:pointer; margin:0 3px;"></i>
+                        <i class="far fa-star" data-v="5" onclick="app.setRating(5)" style="cursor:pointer; margin:0 3px;"></i>
+                    </div>
+                    <div class="input-group"><textarea id="survey-comment" rows="2" placeholder="후기를 남겨주세요 (선택 사항)"></textarea></div>
+                    <button class="btn btn-primary" onclick="app.submitSurvey()">평가 제출</button>
+                </div>
+            </div>
+            <div id="page-settings" class="page">
+                <h2>내 프로필</h2>
+                <div class="card" style="border:none; cursor:default; text-align:center; background:var(--primary); color:#fff;">
+                    <i class="fas fa-store" style="font-size:2.2rem; margin-bottom:8px;"></i>
+                    <div id="profile-shopname" style="font-size:1.4rem; font-weight:900;">-</div>
+                </div>
+                <div class="card" style="border:none; cursor:default;">
+                    <div class="input-group"><label>식당 이름</label><input type="text" id="profile-name" readonly style="background:#f1f5f9;"></div>
+                    <div class="input-group"><label>연락처</label><input type="text" id="profile-phone" readonly style="background:#f1f5f9;"></div>
+                    <div class="input-group"><label>주소</label><input type="text" id="profile-address" placeholder="주소를 입력해 주세요."></div>
+                    <button type="button" class="btn btn-primary" onclick="app.saveAddress()">주소 저장</button>
+                </div>
+                <div class="card" style="border:none; cursor:default;">
+                    <button type="button" class="btn btn-secondary" onclick="app.showPage('pinchange')" style="display:flex; align-items:center; justify-content:space-between; width:100%;"><span><i class="fas fa-lock" style="margin-right:8px;"></i>비밀번호 변경</span><i class="fas fa-chevron-right"></i></button>
+                </div>
+            </div>
+            <div id="page-pinchange" class="page">
+                <h2><i class="fas fa-arrow-left" onclick="app.openProfile()" style="cursor:pointer; margin-right:10px;"></i>비밀번호 변경</h2>
+                <div class="card" style="border:none; cursor:default;">
+                    <div class="input-group"><label style="font-size:0.95rem;">새 비밀번호 (숫자 4자리)</label><input type="password" id="new-pin" inputmode="numeric" maxlength="4" placeholder="● ● ● ●" style="font-size:1.4rem; padding:15px; text-align:center; letter-spacing:0.4rem;"></div>
+                    <div class="input-group"><label style="font-size:0.95rem;">새 비밀번호 확인</label><input type="password" id="new-pin-confirm" inputmode="numeric" maxlength="4" placeholder="● ● ● ●" style="font-size:1.4rem; padding:15px; text-align:center; letter-spacing:0.4rem;"></div>
+                    <button type="button" class="btn btn-primary" onclick="app.changePin()">비밀번호 변경하기</button>
+                </div>
+            </div>
+            <div id="page-info" class="page">
+                <h2>WhiteOn 안내</h2>
+                <div class="card" style="border:none; cursor:default;">
+                    <div style="font-weight:800; font-size:1.1rem; margin-bottom:8px;">화이트온 (482861)</div>
+                    <div style="font-size:0.85rem; color:var(--text-light); line-height:1.8;">
+                        경기도 양주시 은현면 도하리 449-1번지<br>
+                        사업자등록번호 336-06-01157<br>
+                        대표전화 <a href="tel:1600-9057" style="color:var(--primary); font-weight:700;">1600-9057</a><br>
+                        이메일 <a href="mailto:whiteon5046@naver.com" style="color:var(--primary);">whiteon5046@naver.com</a>
+                    </div>
+                </div>
+                <div class="card" style="border:none; cursor:default;">
+                    <a href="https://whiteon.kr/about" target="_blank" style="display:block; padding:13px 0; color:var(--text); font-weight:700; border-bottom:1px solid var(--border); text-decoration:none;"><i class="fas fa-globe" style="color:var(--primary); width:24px;"></i>회사 소개</a>
+                    <a href="https://whiteon.kr/process" target="_blank" style="display:block; padding:13px 0; color:var(--text); font-weight:700; border-bottom:1px solid var(--border); text-decoration:none;"><i class="fas fa-handshake" style="color:var(--primary); width:24px;"></i>렌탈 구매</a>
+                    <a href="https://whiteon.kr/store" target="_blank" style="display:block; padding:13px 0; color:var(--text); font-weight:700; border-bottom:1px solid var(--border); text-decoration:none;"><i class="fas fa-box" style="color:var(--primary); width:24px;"></i>제품 보기</a>
+                    <a href="https://whiteon.kr/qna" target="_blank" style="display:block; padding:13px 0; color:var(--text); font-weight:700; text-decoration:none;"><i class="fas fa-circle-question" style="color:var(--primary); width:24px;"></i>문의하기</a>
+                </div>
+                <div class="card" style="border:none; cursor:default; text-align:center;">
+                    <div style="font-size:0.8rem; color:var(--text-light); margin-bottom:4px;">문의 전화</div>
+                    <a href="tel:1600-9057" style="font-size:1.7rem; font-weight:900; color:var(--primary); text-decoration:none;">1600-9057</a>
                 </div>
             </div>
         </div>
         <div id="boss-nav" class="nav-bar" style="display:none;">
             <div class="nav-item active" onclick="app.switchTab('home')"><i class="fas fa-home"></i><span>홈</span></div>
             <div class="nav-item" onclick="app.switchTab('request')"><i class="fas fa-plus-circle"></i><span>신청</span></div>
+            <div class="nav-item" onclick="app.switchTab('info')"><i class="fas fa-circle-info"></i><span>정보</span></div>
             <div class="nav-item" onclick="app.logout()"><i class="fas fa-sign-out-alt"></i><span>로그아웃</span></div>
         </div>
     </div>
     <script>
         const API_BASE = "/api/v1";
+        const TOKEN_KEY = "restaurant_token";
+
+        // 식당 로그인 토큰을 모든 API 호출에 자동 첨부 (Phase 3.2 §7).
+        // 기존 fetch 호출을 일일이 수정하지 않도록 window.fetch를 한 번만 감싼다.
+        const _origFetch = window.fetch.bind(window);
+        window.fetch = function(url, options) {
+            options = options || {};
+            const u = (typeof url === 'string') ? url : '';
+            const isApi = u.indexOf(API_BASE) !== -1;
+            const isLogin = u.indexOf('/auth/login') !== -1;
+            const token = localStorage.getItem(TOKEN_KEY);
+            if (token && isApi && !isLogin) {
+                options.headers = Object.assign({}, options.headers, { 'Authorization': 'Bearer ' + token });
+            }
+            return _origFetch(url, options).then(function(res) {
+                if (res.status === 401 && isApi && !isLogin) {
+                    app.logout();
+                }
+                return res;
+            });
+        };
+
         const app = {
             restaurant: null, generatedOTP: null, requests: [], currentRequest: null,
-            showPage(id) { document.querySelectorAll('.page').forEach(p => p.classList.remove('active')); document.getElementById('page-' + id).classList.add('active'); document.getElementById('boss-nav').style.display = (['login','signup','waiting','reg-success'].includes(id)) ? 'none' : 'flex'; },
+            showPage(id) { document.querySelectorAll('.page').forEach(p => p.classList.remove('active')); document.getElementById('page-' + id).classList.add('active'); const hideChrome = ['login','signup','waiting','reg-success'].includes(id); document.getElementById('boss-nav').style.display = hideChrome ? 'none' : 'flex'; document.getElementById('header-profile-btn').style.display = hideChrome ? 'none' : 'block'; },
             searchAddress() { new daum.Postcode({ oncomplete: (data) => { document.getElementById('reg-address').value = data.address; document.getElementById('reg-address-detail').focus(); } }).open(); },
             sendOTP(type) { this.generatedOTP = "111111"; alert(`테스트용 인증번호: [${this.generatedOTP}]`); document.getElementById(`otp-group-${type}`).style.display = 'block'; },
             async login() {
                 const btn = document.querySelector('#page-login .btn-primary');
                 const originalText = btn ? btn.innerText : '로그인';
+                const errEl = document.getElementById('login-error');
+                errEl.style.display = 'none';
                 try {
                     if(btn) { btn.innerText = '로그인 중...'; btn.disabled = true; }
                     let phoneInput = document.getElementById('login-phone').value || '';
                     let phone = phoneInput.replace(/[^0-9]/g, '').trim();
-                    if(!phone) throw new Error('핸드폰 번호를 입력해 주세요.');
-                    const res = await fetch(`${API_BASE}/restaurants/`);
-                    if(!res.ok) throw new Error('서버 연결에 실패했습니다.');
+                    const pin = document.getElementById('login-pin').value;
+                    if(!phone || pin.length !== 4) {
+                        const msg = '전화번호와 비밀번호 4자리를 모두 입력해 주세요.';
+                        errEl.innerText = msg; errEl.style.display = 'block';
+                        alert(msg);
+                        return;
+                    }
+                    const res = await _origFetch(`${API_BASE}/auth/login/pin`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ phone, pin, user_type: 'RESTAURANT' })
+                    });
+                    if(!res.ok) {
+                        let msg = '로그인에 실패했습니다.';
+                        if(res.status === 401) msg = '전화번호 또는 비밀번호(PIN)가 올바르지 않습니다.\n전화번호와 비밀번호를 다시 확인해 주세요.';
+                        else if(res.status === 423) { try { msg = (await res.json()).detail || msg; } catch(e) {} }
+                        errEl.innerText = msg;
+                        errEl.style.display = 'block';
+                        document.getElementById('login-pin').value = '';  // 틀린 비번 비우기
+                        alert(msg);
+                        return;
+                    }
                     const data = await res.json();
-                    const found = data.find(r => (r.phone || '').replace(/[^0-9]/g, '') === phone);
+                    localStorage.setItem(TOKEN_KEY, data.access_token);
+                    document.getElementById('login-pin').value = '';
+                    // 로그인 성공 후 토큰으로 식당 정보를 불러온다.
+                    const listRes = await fetch(`${API_BASE}/restaurants/`);
+                    if(!listRes.ok) throw new Error('서버 연결에 실패했습니다.');
+                    const list = await listRes.json();
+                    const found = list.find(r => (r.phone || '').replace(/[^0-9]/g, '') === phone);
                     if(found) {
                         this.restaurant = found;
                         if(!found.is_approved) {
@@ -137,12 +245,68 @@
                             await this.loadRequests();
                         }
                     } else {
-                        alert('가입되지 않은 번호입니다. 가입 신청을 먼저 진행해 주세요.');
+                        this.showPage('waiting');
                     }
                 } catch(e) {
-                    alert('로그인 오류: ' + e.message);
+                    const msg = '로그인 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.';
+                    errEl.innerText = msg; errEl.style.display = 'block';
+                    alert(msg);
                 } finally {
                     if(btn) { btn.innerText = originalText; btn.disabled = false; }
+                }
+            },
+            async changePin() {
+                const pin = document.getElementById('new-pin').value;
+                const confirmPin = document.getElementById('new-pin-confirm').value;
+                if(pin.length !== 4 || !/^[0-9]{4}$/.test(pin)) return alert('새 비밀번호는 숫자 4자리여야 합니다.');
+                if(pin !== confirmPin) return alert('새 비밀번호가 일치하지 않습니다. 다시 확인해 주세요.');
+                try {
+                    const res = await fetch(`${API_BASE}/auth/pin`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ new_pin: pin })
+                    });
+                    if(res.ok) {
+                        alert('비밀번호가 변경되었습니다.');
+                        document.getElementById('new-pin').value = '';
+                        document.getElementById('new-pin-confirm').value = '';
+                        this.openProfile();
+                    } else {
+                        let msg = '비밀번호 변경에 실패했습니다.';
+                        try { msg = (await res.json()).detail || msg; } catch(e) {}
+                        alert(msg);
+                    }
+                } catch(e) {
+                    alert('비밀번호 변경 중 오류가 발생했습니다.');
+                }
+            },
+            openProfile() { this.showPage('settings'); this.loadProfile(); },
+            loadProfile() {
+                if(!this.restaurant) return;
+                document.getElementById('profile-shopname').textContent = this.restaurant.name || '식당';
+                document.getElementById('profile-name').value = this.restaurant.name || '';
+                document.getElementById('profile-phone').value = this.restaurant.phone || '';
+                document.getElementById('profile-address').value = this.restaurant.address || '';
+            },
+            async saveAddress() {
+                const address = document.getElementById('profile-address').value.trim();
+                if(!address) return alert('주소를 입력해 주세요.');
+                try {
+                    const res = await fetch(`${API_BASE}/restaurants/${this.restaurant.id}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ address, region: this.extractRegion(address) })
+                    });
+                    if(res.ok) {
+                        this.restaurant = await res.json();
+                        alert('주소가 변경되었습니다.');
+                    } else {
+                        let msg = '주소 변경에 실패했습니다.';
+                        try { msg = (await res.json()).detail || msg; } catch(e) {}
+                        alert(msg);
+                    }
+                } catch(e) {
+                    alert('주소 변경 중 오류가 발생했습니다.');
                 }
             },
             viewDetail(id) {
@@ -152,21 +316,30 @@
                     this.currentRequest = this.requests.find(x => x.id === id);
                 }
             },
+            // 주소 문자열에서 도+시(서울/광역시 등 포함)만 추출 — 자동 지역 매칭용
+            extractRegion(address) {
+                const t = (address || '').trim().split(/\s+/).filter(Boolean);
+                if(t.length === 0) return '';
+                if(/(특별시|광역시|특별자치시)$/.test(t[0]) || t[0] === '서울' || t[0] === '세종') return t[0];
+                const cityIdx = t.findIndex(x => /(시|군)$/.test(x));
+                return cityIdx > 0 ? `${t[0]} ${t[cityIdx]}` : t[0];
+            },
             async register() {
                 const phone = document.getElementById('reg-phone').value; const name = document.getElementById('reg-name').value;
-                const region = document.getElementById('reg-region').value; const addr = document.getElementById('reg-address').value;
+                const addr = document.getElementById('reg-address').value;
                 const detail = document.getElementById('reg-address-detail').value; const otp = document.getElementById('reg-otp').value;
                 if(!name || !phone || !addr || !detail) return alert('이름, 핸드폰 번호, 상세 주소는 필수 입력 사항입니다.');
+                const region = this.extractRegion(addr);  // 주소에서 도+시 자동 추출
                 const res = await fetch(`${API_BASE}/restaurants/`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, phone, region, address: `${addr} ${detail}`}) });
                 if(res.ok) this.showPage('reg-success'); else { const err = await res.json(); alert(err.detail || '가입 신청 실패'); }
             },
-            switchTab(id) { document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active')); event.currentTarget.classList.add('active'); this.showPage(id); if(id==='home') this.loadRequests(); },
+            switchTab(id) { document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active')); event.currentTarget.classList.add('active'); this.showPage(id); if(id==='home') this.loadRequests(); if(id==='request') this.resetRequestForm(); },
             async loadRequests() {
                 const res = await fetch(`${API_BASE}/requests/?restaurant_id=${this.restaurant.id}`);
                 const data = await res.json();
                 this.requests = data;
                 document.getElementById('request-list').innerHTML = data.reverse().map(r => {
-                    const status = r.status; const orderNo = r.id.split('-')[0].toUpperCase();
+                    const status = this.effStatus(r); const orderNo = r.id.split('-')[0].toUpperCase();
                     const reqDate = new Date(r.created_at).toLocaleDateString();
                     const meta = r.metadata || {};
                     return `
@@ -178,30 +351,53 @@
                             </div>
                             <div class="detail-view">
                                 <div style="margin-bottom:15px;"><b>진행 상황:</b> <span style="color:var(--primary); font-weight:700;">${this.getStatDesc(status)}</span></div>
+                                ${r.scheduled_visit_at ? `<div style="margin-bottom:15px; padding:12px; background:#eff6ff; border-radius:12px; border-left:5px solid var(--primary);"><b style="color:var(--primary); font-size:0.8rem;"><i class="fas fa-calendar-check"></i> 방문 예정</b><br><span style="font-size:1.05rem; font-weight:800;">${this.formatVisit(r.scheduled_visit_at)}</span><br><span style="font-size:0.78rem; color:var(--text-light);">담당 지사가 위 일정에 방문합니다.</span></div>` : ''}
                                 ${(['PAYMENT_REQUESTED', 'COMPLETED'].includes(status)) ? `
                                     <div style="background:#f1f5f9; border-radius:15px; padding:15px; margin-bottom:15px; border-left:5px solid var(--success);">
                                         <div style="font-size:0.75rem; color:var(--text-light); font-weight:800; margin-bottom:8px;">🛠️ 수리 완료 리포트</div>
-                                        <div style="margin-bottom:10px;"><b style="font-size:0.7rem; color:var(--primary);">[진단된 문제]</b><br><span style="font-size:0.85rem; color:var(--text);">${meta.problem || '-'}</span></div>
-                                        <div style="margin-bottom:10px;"><b style="font-size:0.7rem; color:var(--success);">[조치 내용]</b><br><span style="font-size:0.85rem; color:var(--text);">${meta.solution || '-'}</span></div>
+                                        <div style="margin-bottom:10px;"><b style="font-size:0.7rem; color:var(--primary);">[진단된 문제]</b><br><span style="font-size:0.85rem; color:var(--text);">${meta.report?.cause || '-'}</span></div>
+                                        <div style="margin-bottom:10px;"><b style="font-size:0.7rem; color:var(--success);">[조치 내용]</b><br><span style="font-size:0.85rem; color:var(--text);">${meta.report?.sol || '-'}</span></div>
                                         ${r.media && r.media.length > 1 ? `<div style="margin-top:10px;"><b style="font-size:0.7rem; color:var(--text-light);">[수리 완료 사진]</b><div class="media-box"><img src="${r.media[r.media.length-1].file_url}"></div></div>` : ''}
                                     </div>
                                 ` : ''}
                                 ${status === 'PAYMENT_REQUESTED' ? `
                                     <div style="padding:18px; background:linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border-radius:18px; margin-bottom:15px; box-shadow: 0 10px 15px -3px rgba(37,99,235,0.1);">
-                                        <div style="font-size:0.7rem; color:var(--primary); font-weight:700;">최종 결제 금액</div>
-                                        <div style="font-size:1.8rem; font-weight:900; color:var(--primary); margin:5px 0;">₩${(meta.requested_amount||0).toLocaleString()}</div>
-                                        <button type="button" class="btn btn-primary" style="padding:12px; font-size:1.1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1);" onclick="event.stopPropagation(); app.preparePayment('${r.id}', ${meta.requested_amount})">지금 결제하기</button>
+                                        <div style="font-size:0.7rem; color:var(--primary); font-weight:700; margin-bottom:8px;">청구 내역</div>
+                                        ${(meta.billing_items || []).map(it => `<div style="display:flex; justify-content:space-between; font-size:0.85rem; margin-bottom:4px;"><span>${it.description || '-'}</span><span>₩${Number(it.amount||0).toLocaleString()}</span></div>`).join('') || '<div style="font-size:0.85rem; color:var(--text-light);">상세 내역 없음</div>'}
+                                        <div style="border-top:1px dashed #94a3b8; margin:8px 0;"></div>
+                                        <div style="display:flex; justify-content:space-between; font-size:0.8rem; color:var(--text-light);"><span>공급가액</span><span>₩${Number(meta.supply_amount||0).toLocaleString()}</span></div>
+                                        <div style="display:flex; justify-content:space-between; font-size:0.8rem; color:var(--text-light);"><span>부가세 (10%)</span><span>₩${Number(meta.vat||0).toLocaleString()}</span></div>
+                                        <div style="display:flex; justify-content:space-between; font-size:1.5rem; font-weight:900; color:var(--primary); margin:8px 0;"><span>합계</span><span>₩${Number(meta.requested_amount||0).toLocaleString()}</span></div>
+                                        <button type="button" class="btn btn-primary" style="padding:12px; font-size:1.1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1);" onclick="event.stopPropagation(); app.preparePayment('${r.id}')">지금 결제하기</button>
                                     </div>
                                 ` : ''}
                                 <div style="margin-bottom:10px;"><b style="font-size:0.75rem;">📋 접수 당시 내용:</b><br><div style="padding:10px; background:white; border-radius:10px; margin-top:5px; border:1px solid var(--border);">${r.description || '-'}</div></div>
                                 ${r.media && r.media.length > 0 ? `<div style="font-size:0.7rem; color:var(--text-light); margin-bottom:4px;">[접수 시 첨부사진]</div><div class="media-box" style="opacity:0.8; height:120px;"><img src="${r.media[0].file_url}" style="height:100%; object-fit:cover; width:100%;"></div>` : ''}
+                                ${(r.status==='PENDING' && !['CLAIMED','HQ_ASSIGNED'].includes(r.dispatch_status)) ? `<button type="button" class="btn btn-secondary" style="margin-top:12px; color:var(--danger);" onclick="event.stopPropagation(); app.cancelRequest('${r.id}')">신청 취소하기</button>` : ''}
                             </div>
                         </div>`;
                 }).join('') || '<p style="text-align:center; color:var(--text-light);">신청 내역이 없습니다.</p>';
             },
+            // 신청 화면 진입 시 폼 초기화 — 이전 입력이 남지 않게
+            resetRequestForm() {
+                const cat = document.getElementById('req-category'); if(cat) cat.selectedIndex = 0;
+                const desc = document.getElementById('req-description'); if(desc) desc.value = '';
+                const file = document.getElementById('req-file'); if(file) file.value = '';
+            },
+            // 매니저 수락 전까지 식당이 신청을 취소할 수 있다
+            async cancelRequest(id) {
+                if(!confirm('이 수리 신청을 취소하시겠습니까?')) return;
+                try {
+                    const res = await fetch(`${API_BASE}/requests/${id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status:'CANCELED', dispatch_status:'CANCELLED'}) });
+                    if(res.ok) { alert('신청이 취소되었습니다.'); this.loadRequests(); }
+                    else { let msg='취소에 실패했습니다.'; try{ msg=(await res.json()).detail||msg; }catch(e){} alert(msg); }
+                } catch(e) { alert('취소 처리 중 오류가 발생했습니다.'); }
+            },
             async submitRequest() {
                 const cat = document.getElementById('req-category').value; const desc = document.getElementById('req-description').value;
                 const file = document.getElementById('req-file').files[0];
+                if(!desc || !desc.trim()) return alert('상세 내용은 필수 입력 사항입니다.');
+                if(!file) return alert('현장 사진은 필수 첨부 사항입니다.');
                 const res = await fetch(`${API_BASE}/requests/`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({restaurant_id:this.restaurant.id, category:cat, description:desc, status:'PENDING'}) });
                 if(res.ok) {
                     const newReq = await res.json();
@@ -210,29 +406,85 @@
                 }
             },
             async pay(reqId, amount) {
+                amount = Number(amount) || 0;
                 if(!confirm(`₩${amount.toLocaleString()}원을 결제하시겠습니까? (테스트용 가상 결제)`)) return;
-                
-                const res = await fetch(`${API_BASE}/requests/${reqId}`, { 
-                    method:'PATCH', 
-                    headers:{'Content-Type':'application/json'}, 
-                    body:JSON.stringify({status:'COMPLETED'}) 
+
+                const res = await fetch(`${API_BASE}/requests/${reqId}`, {
+                    method:'PATCH',
+                    headers:{'Content-Type':'application/json'},
+                    body:JSON.stringify({status:'COMPLETED'})
                 });
-                
+
                 if(res.ok) {
                     alert('가상 결제가 성공적으로 완료되었습니다. 수리 완료 처리되었습니다.');
+                    // 만족도 조사 초기화 후 결제완료 화면으로
+                    this.lastPaidRequestId = reqId;
+                    this.surveyRating = 0;
+                    document.getElementById('survey-comment').value = '';
+                    document.querySelectorAll('#survey-stars i').forEach(s => s.className = 'far fa-star');
                     this.showPage('payment-success');
                     this.loadRequests();
                 } else {
-                    alert('결제 처리 중 오류가 발생했습니다.');
+                    let msg = '결제 처리 중 오류가 발생했습니다.';
+                    try { msg = (await res.json()).detail || msg; } catch(e) {}
+                    alert(msg);
                 }
             },
-            preparePayment(id, amount) {
+            // 만족도 별점 선택 (1~5)
+            setRating(n) {
+                this.surveyRating = n;
+                document.querySelectorAll('#survey-stars i').forEach(s => {
+                    s.className = (parseInt(s.dataset.v) <= n) ? 'fas fa-star' : 'far fa-star';
+                });
+            },
+            // 만족도 평가 제출 — metadata.survey에 저장 (관제·성과 보드에 반영됨)
+            async submitSurvey() {
+                if(!this.surveyRating) return alert('별점을 선택해 주세요.');
+                const id = this.lastPaidRequestId;
+                if(!id) return this.showPage('home');
+                try {
+                    const cur = await (await fetch(`${API_BASE}/requests/${id}`)).json();
+                    let meta = cur.metadata;
+                    if(typeof meta === 'string') { try { meta = JSON.parse(meta); } catch(e) { meta = {}; } }
+                    meta = meta || {};
+                    meta.survey = { rating: this.surveyRating, comment: document.getElementById('survey-comment').value.trim() };
+                    const res = await fetch(`${API_BASE}/requests/${id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ metadata: meta }) });
+                    if(res.ok) {
+                        alert('소중한 평가 감사합니다!');
+                        this.showPage('home'); this.loadRequests();
+                    } else {
+                        alert('평가 제출에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+                    }
+                } catch(e) {
+                    alert('평가 제출 중 오류가 발생했습니다.');
+                }
+            },
+            preparePayment(id) {
+                const req = (this.requests || []).find(x => x.id === id);
+                const amount = (req && req.metadata && req.metadata.requested_amount) || 0;
                 this.pay(id, amount);
             },
-            logout() { this.restaurant = null; this.showPage('login'); },
-            getStatColor(s) { const map={'PENDING':'#f59e0b', 'IN_PROGRESS':'#3b82f6', 'PAYMENT_REQUESTED':'#10b981', 'COMPLETED':'#64748b'}; return map[s]||'#000'; },
-            formatStat(s) { const map={'PENDING':'접수대기', 'IN_PROGRESS':'수리중', 'PAYMENT_REQUESTED':'결제대기', 'COMPLETED':'수리완료'}; return map[s]||s; },
-            getStatDesc(s) { const map={'PENDING':'본사에서 지사를 배정 중입니다.', 'IN_PROGRESS':'지사 매니저가 현장 수리 중입니다.', 'PAYMENT_REQUESTED':'수리가 완료되었습니다. 결제 후 수리 리포트를 확인하세요.', 'COMPLETED':'수리가 완료되었으며 결제가 끝났습니다.'}; return map[s]||''; }
+            logout() {
+                localStorage.removeItem(TOKEN_KEY);
+                this.restaurant = null;
+                const errEl = document.getElementById('login-error');
+                if(errEl) errEl.style.display = 'none';
+                const pinEl = document.getElementById('login-pin');
+                if(pinEl) pinEl.value = '';
+                this.showPage('login');
+            },
+            // 배정 상태 반영 — 접수(PENDING)됐지만 지사가 수락·배정되면 'ASSIGNED'로 표시
+            effStatus(r) { return (r.status === 'PENDING' && ['CLAIMED','HQ_ASSIGNED'].includes(r.dispatch_status)) ? 'ASSIGNED' : r.status; },
+            // 방문 예정 일시 → 한국어 표기 (plan_phase3.6)
+            formatVisit(iso) {
+                if(!iso) return '';
+                const d = new Date(iso);
+                if(isNaN(d)) return '';
+                return d.toLocaleString('ko-KR', { month:'long', day:'numeric', weekday:'short', hour:'2-digit', minute:'2-digit' });
+            },
+            getStatColor(s) { const map={'PENDING':'#f59e0b', 'ASSIGNED':'#2563eb', 'IN_PROGRESS':'#3b82f6', 'SUSPENDED':'#6b7280', 'PAYMENT_REQUESTED':'#10b981', 'COMPLETED':'#64748b', 'CANCELED':'#94a3b8'}; return map[s]||'#000'; },
+            formatStat(s) { const map={'PENDING':'접수대기', 'ASSIGNED':'지사 배정완료', 'IN_PROGRESS':'수리중', 'SUSPENDED':'중단됨', 'PAYMENT_REQUESTED':'결제대기', 'COMPLETED':'수리완료', 'CANCELED':'취소됨'}; return map[s]||s; },
+            getStatDesc(s) { const map={'PENDING':'본사에서 지사를 배정 중입니다.', 'ASSIGNED':'담당 지사가 배정되었습니다. 곧 수리가 진행됩니다.', 'IN_PROGRESS':'지사 매니저가 현장 수리 중입니다.', 'SUSPENDED':'수리가 일시 중단되었습니다. 본사에서 확인 후 다시 진행됩니다.', 'PAYMENT_REQUESTED':'수리가 완료되었습니다. 결제 후 수리 리포트를 확인하세요.', 'COMPLETED':'수리가 완료되었으며 결제가 끝났습니다.', 'CANCELED':'취소된 신청입니다.'}; return map[s]||''; }
         };
     </script>
 </body>

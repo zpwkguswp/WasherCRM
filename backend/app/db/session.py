@@ -9,7 +9,7 @@ def get_session():
 
 def init_db():
     # 모델들을 임포트하여 metadata에 등록되도록 함
-    from app.models.domain import Branch, Restaurant, ServiceRequest, RequestMedia, Payment, Settlement
+    from app.models.domain import Branch, Restaurant, ServiceRequest, RequestMedia, Payment, Settlement, DispatchEvent
     from sqlmodel import text, Session
     SQLModel.metadata.create_all(engine)
     
@@ -37,20 +37,17 @@ def init_db():
             print("Successfully added SLA columns to service_requests")
         except Exception: session.rollback()
 
-        # 4. [매칭 자동 수선] 식당 지역 정보 표준화 및 전체 승인 처리
+        # 4. [매칭 자동 수선] 식당 지역 정보 표준화
+        #    (전체 자동 승인은 제거 — 가입 시 본사 승인 필수, 2026-05-16 대표 지시)
         try:
             # 주소의 앞 두 단어(예: 경기 의정부시)를 region 필드에 삽입
             session.execute(text("""
-                UPDATE restaurants 
+                UPDATE restaurants
                 SET region = split_part(address, ' ', 1) || ' ' || split_part(address, ' ', 2)
                 WHERE region IS NULL OR region = '' OR region = 'None';
             """))
-            # 지사/식당 전체 승인 처리 (매칭 활성화)
-            session.execute(text("UPDATE restaurants SET is_approved = true WHERE is_approved = false;"))
-            session.execute(text("UPDATE branches SET is_approved = true WHERE is_approved = false;"))
-
             session.commit()
-            print("Successfully normalized restaurant regions and approvals")
+            print("Successfully normalized restaurant regions")
         except Exception as e:
             session.rollback()
             print(f"DB Normalize Error: {e}")
@@ -66,3 +63,24 @@ def init_db():
         except Exception as e:
             session.rollback()
             print(f"PIN column add error: {e}")
+
+        # 6. [배차 plan_phase3.7] service_requests 배차 컬럼
+        #    (dispatch_events 테이블은 SQLModel.metadata.create_all이 생성)
+        try:
+            session.execute(text("ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS dispatch_status VARCHAR;"))
+            session.execute(text("ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS cancel_count INTEGER DEFAULT 0;"))
+            session.execute(text("ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS dispatch_deadline TIMESTAMP;"))
+            session.commit()
+            print("Successfully added dispatch columns to service_requests")
+        except Exception as e:
+            session.rollback()
+            print(f"Dispatch column add error: {e}")
+
+        # 7. [방문 일정 plan_phase3.6] service_requests 방문 예정 일시 컬럼
+        try:
+            session.execute(text("ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS scheduled_visit_at TIMESTAMP;"))
+            session.commit()
+            print("Successfully added scheduled_visit_at to service_requests")
+        except Exception as e:
+            session.rollback()
+            print(f"Visit schedule column add error: {e}")

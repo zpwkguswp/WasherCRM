@@ -1,7 +1,8 @@
 from pydantic import BaseModel, Field, model_validator
 from typing import Optional, List
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, date
+from decimal import Decimal
 
 class RequestCreate(BaseModel):
     restaurant_id: UUID = Field(..., description="고장 접수를 신청하는 식당의 고유 ID (UUID)")
@@ -15,6 +16,8 @@ class RequestUpdate(BaseModel):
     category: Optional[str] = None
     description: Optional[str] = None
     metadata: Optional[dict] = None
+    dispatch_status: Optional[str] = None
+    scheduled_visit_at: Optional[datetime] = None
 
 class MediaRead(BaseModel):
     id: UUID
@@ -37,6 +40,12 @@ class RequestRead(BaseModel):
     assigned_at: Optional[datetime]
     accepted_at: Optional[datetime] = None
     completed_at: Optional[datetime]
+    # 배차 (plan_phase3.7)
+    dispatch_status: Optional[str] = None
+    cancel_count: int = 0
+    dispatch_deadline: Optional[datetime] = None
+    # 방문 일정 (plan_phase3.6)
+    scheduled_visit_at: Optional[datetime] = None
     # 프론트엔드 편의를 위한 정보 추가
     restaurant_name: Optional[str] = None
     restaurant_address: Optional[str] = None
@@ -161,5 +170,54 @@ class DeviceTokenRead(BaseModel):
     platform: str
     is_active: bool
     created_at: datetime
+    class Config:
+        from_attributes = True
+
+# ─── 정산 (plan_phase4.2) ─────────────────────────────────────────
+
+class SettlementGenerate(BaseModel):
+    period_start: date = Field(..., description="정산 기간 시작일 (포함)")
+    period_end: date = Field(..., description="정산 기간 종료일 (포함)")
+    period_type: str = Field("WEEKLY", description="WEEKLY|BIWEEKLY|MONTHLY|CUSTOM")
+
+class SettlementStatusUpdate(BaseModel):
+    status: str = Field(..., description="DRAFT|REVIEW|APPROVED|PAID|INVOICED|HOLD")
+    notes: Optional[str] = None
+
+class SettlementItemRead(BaseModel):
+    id: UUID
+    settlement_id: UUID
+    payment_id: Optional[UUID] = None
+    item_type: str
+    amount: Decimal
+    description: Optional[str] = None
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+class SettlementRead(BaseModel):
+    id: UUID
+    branch_id: UUID
+    period_start: date
+    period_end: date
+    period_type: str
+    gross_amount: Decimal
+    vat_amount: Decimal
+    commission_rate: Decimal
+    hq_commission: Decimal
+    branch_amount: Decimal
+    refund_offset: Decimal
+    net_amount: Decimal
+    status: str
+    created_at: datetime
+    approved_at: Optional[datetime] = None
+    paid_at: Optional[datetime] = None
+    invoiced_at: Optional[datetime] = None
+    approved_by: Optional[str] = None
+    notes: Optional[str] = None
+    # 프론트엔드 편의
+    branch_name: Optional[str] = None
+    item_count: int = 0
+    items: List[SettlementItemRead] = []
     class Config:
         from_attributes = True

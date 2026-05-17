@@ -41,11 +41,10 @@ async def root():
         return FileResponse(index_path)
     return {"message": "WhiteOn API is running (www/index.html not found)"}
 
-# Admin UI 라우트
+# Admin UI 라우트 — www/admin.html을 사용 (static/admin.html은 구버전 잔재)
 @app.get("/admin", response_class=HTMLResponse)
 async def admin_page():
-    static_path = os.path.join(os.path.dirname(__file__), "static", "admin.html")
-    return FileResponse(static_path)
+    return FileResponse(os.path.join(www_dir, "admin.html"))
 
 # 각 앱 전용 라우트
 @app.get("/hq", response_class=HTMLResponse)
