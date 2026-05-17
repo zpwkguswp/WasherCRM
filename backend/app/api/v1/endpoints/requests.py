@@ -141,7 +141,14 @@ def _dispatch_audit(session: Session, request_id: UUID, action: str, payload: di
 @router.post("/", response_model=RequestRead, status_code=status.HTTP_201_CREATED)
 def create_request(data: RequestCreate, session: Session = Depends(get_session)):
     # 1. 요청 생성 (notified_at = 지사 브로드캐스트 시각, SLA 시작점)
-    new_request = ServiceRequest(**data.model_dump())
+    # RequestCreate.metadata → ServiceRequest.metadata_json 으로 명시 매핑.
+    # (model_dump() 전개 시 필드명이 달라 metadata가 유실되던 버그 수정)
+    new_request = ServiceRequest(
+        restaurant_id=data.restaurant_id,
+        category=data.category,
+        description=data.description,
+        metadata_json=data.metadata or {},
+    )
     new_request.notified_at = datetime.utcnow()
     new_request.dispatch_status = "OPEN"  # 배차 시작 (plan_phase3.7 §3.1)
     session.add(new_request)
