@@ -85,3 +85,37 @@
 
 **미해결·주의**
 - PATCH 엔드포인트(지사·식당·요청 수정/승인)는 아직 개방 — §3.2b 역할 분리 대기. harnes.md 2026-05-16 이슈 참조.
+
+---
+
+## 2026-05-17 — §4.2 정산 엔진 구현 (계산 알고리즘 + HQ·지사 운영 화면)
+
+**대화 요약**
+- §4.1 정산 스키마(2026-05-12) 위에 실제 계산 엔진과 운영 화면을 올리는 작업. 착수 전 `plan_phase4.2_settlement_engine.md` 선작성(harnes.md §5 준수).
+- 외부 계정(PortOne 실결제·Popbill 실발행) 대기 항목은 이번 범위에서 제외하기로 합의 — 정산 엔진은 현재 결제 기록(매니저 입력액)을 그대로 집계하고, 추후 실결제가 붙어도 코드는 동일하게 동작.
+
+**한 일**
+- `backend/app/services/settlement.py` 신규 — 정산 계산 엔진. PAID 결제를 기간×지사별 집계 → Settlement+SettlementItem 생성. VAT 분리(공급가=gross/1.1), 등급별 수수료 매핑(BRONZE 10%·SILVER 8%·GOLD 6%·DIAMOND 5%), 멱등성((지사,기간) 중복 방지), 음수 net→HOLD. 변경 가능 정책(수수료율·VAT율·반올림)은 파일 상단 상수로 분리.
+- `backend/app/api/v1/endpoints/settlements.py` 신규 — 정산 API 5종: POST /generate(HQ), GET /(HQ), GET /my(지사), GET /{id}(HQ·지사 본인), PATCH /{id}/status(HQ). 상태 전이 머신 DRAFT→REVIEW→APPROVED→PAID→INVOICED + HOLD 분기, 비허용 전이는 400.
+- `backend/app/api/v1/api.py` — settlements 라우터 등록.
+- `backend/app/schemas/domain.py` — SettlementRead/SettlementItemRead/SettlementGenerate/SettlementStatusUpdate 추가.
+- `www/admin.html` — HQ "정산 관리" 탭 추가(기간 선택·생성, 정산서 목록·상세 모달, 상태 전이 버튼).
+- `www/manager.html` — 지사 "정산" 탭 추가(본인 정산서 목록, 라인 펼쳐보기).
+- `plan_phase4.2_settlement_engine.md` 신규 — 실행 계획서(코드보다 먼저 작성).
+- 검증: 정산 산식 단위·통합 검산 통과(gross 880000→hq 70400(8%)→net 809600, 멱등성 OK), API 5종 동작 확인(상태 전이 정상·비정상 경로, BRANCH 본인만 조회·HQ전용 403), HTML JS 구문 검사 통과. AWS(13.124.100.75) 배포 완료, 백엔드 재기동 active, dev=AWS 6개 파일 md5 동일.
+- 커밋 `0ed2802`(브랜치 1.0.0.7), GitHub 푸시 완료.
+
+**결정**
+- 외부 계정 대기(PortOne 실결제·Popbill 세금계산서 실발행)는 이번 범위에서 제외 — 정산 엔진은 현재 결제 기록을 집계, 추후 실결제 붙어도 코드 동일 동작.
+- 환불 차감(refund_offset)은 현재 환불 데이터가 없어 0으로 고정, 로직 자리만 유지.
+- 정산 주기·수수료율은 대표님이 반려·변경할 수 있는 정책 — 코드 상수/파라미터로 분리.
+
+**다음 할 일**
+- §4.5 Popbill 전자세금계산서 자동 발행 워커 — 사람 트랙(팝빌 가입·인증서 등록) 대기.
+- §3.1 통합 로그인 페이지 UI — 보류 항목, 별도 착수 시점 협의 필요.
+- §3.2b 식당·지사 PASS 휴대폰 본인인증 — 포트원 가입 후(사람 트랙 대기).
+- §3.4 가입 검증 규칙 재설계.
+
+**미해결·주의**
+- AWS 배포 검증 중 `POST /generate`로 의정부1지사의 실제 테스트 결제(2026-05-11~17, 매출 11,000,110원) 정산서 1건이 DRAFT 상태로 생성됨. DRAFT라 비가역 아님 — 정식 정산 전 정리 또는 그대로 검토 진행 판단 필요.
+- 정산 엔진은 현재 매니저 입력 결제액 기준 집계 — 실결제(PortOne) 연동 시 결제 데이터 출처만 바뀌고 엔진 로직은 불변.
